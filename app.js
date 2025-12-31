@@ -149,6 +149,11 @@ function createMatchCard(match) {
     // Get top 3 predictions
     const topPredictions = predictions.slice(0, 3);
     
+    // Add event listener after card is created
+    setTimeout(() => {
+        setupPredictionReasons();
+    }, 100);
+    
     card.innerHTML = `
         <div class="match-header">
             <div class="teams">
@@ -220,12 +225,27 @@ function createMatchCard(match) {
         <div class="predictions">
             <div class="predictions-title">🎯 Top Predictions (Ranked by Likelihood)</div>
             ${topPredictions.map((pred, index) => `
-                <div class="prediction-item">
-                    <div>
-                        <span class="prediction-rank rank-${pred.rank}">${pred.rank}</span>
-                        <span class="prediction-label">${pred.type}</span>
+                <div class="prediction-item" data-prediction-id="pred-${match.id}-${pred.rank}">
+                    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                        <div style="flex: 1;">
+                            <div style="display: flex; align-items: center; flex-wrap: wrap;">
+                                <span class="prediction-rank rank-${pred.rank}">${pred.rank}</span>
+                                <span class="prediction-label">${pred.type}</span>
+                                <button class="reason-toggle" data-target="pred-${match.id}-${pred.rank}" style="margin-left: 10px; background: none; border: 2px solid #000; border-radius: 5px; padding: 2px 8px; cursor: pointer; font-family: 'Kalam', cursive; font-size: 0.8em;">Why?</button>
+                            </div>
+                        </div>
+                        <div class="prediction-percentage">${pred.points}%</div>
                     </div>
-                    <div class="prediction-percentage">${pred.points}%</div>
+                    <div class="prediction-reasons hidden" id="pred-${match.id}-${pred.rank}">
+                        ${pred.reasons && pred.reasons.length > 0 ? `
+                            <div style="margin-top: 10px; padding: 10px; background: #f9f9f9; border: 2px dashed #000; border-radius: 8px; font-size: 0.9em;">
+                                <strong style="text-decoration: underline;">Reasons:</strong>
+                                <ul style="margin-top: 8px; margin-left: 20px;">
+                                    ${pred.reasons.map(reason => `<li style="margin-bottom: 5px;">${reason}</li>`).join('')}
+                                </ul>
+                            </div>
+                        ` : '<div style="margin-top: 10px; padding: 10px; font-size: 0.9em; opacity: 0.7;">No specific reasons available</div>'}
+                    </div>
                 </div>
             `).join('')}
             
@@ -234,15 +254,30 @@ function createMatchCard(match) {
                     <strong>All Predictions:</strong>
                 </div>
                 ${predictions.map(pred => `
-                    <div class="prediction-item" style="padding: 10px; margin-bottom: 8px;">
-                        <div>
-                            <span class="prediction-rank rank-${pred.rank <= 3 ? pred.rank : ''}" 
-                                  style="${pred.rank > 3 ? 'background: #999;' : ''}">
-                                ${pred.rank}
-                            </span>
-                            <span class="prediction-label">${pred.type}</span>
+                    <div class="prediction-item" style="padding: 10px; margin-bottom: 8px;" data-prediction-id="pred-all-${match.id}-${pred.rank}">
+                        <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                            <div style="flex: 1;">
+                                <div style="display: flex; align-items: center; flex-wrap: wrap;">
+                                    <span class="prediction-rank rank-${pred.rank <= 3 ? pred.rank : ''}" 
+                                          style="${pred.rank > 3 ? 'background: #999;' : ''}">
+                                        ${pred.rank}
+                                    </span>
+                                    <span class="prediction-label">${pred.type}</span>
+                                    <button class="reason-toggle" data-target="pred-all-${match.id}-${pred.rank}" style="margin-left: 10px; background: none; border: 2px solid #000; border-radius: 5px; padding: 2px 8px; cursor: pointer; font-family: 'Kalam', cursive; font-size: 0.8em;">Why?</button>
+                                </div>
+                            </div>
+                            <div class="prediction-percentage">${pred.points}%</div>
                         </div>
-                        <div class="prediction-percentage">${pred.points}%</div>
+                        <div class="prediction-reasons hidden" id="pred-all-${match.id}-${pred.rank}">
+                            ${pred.reasons && pred.reasons.length > 0 ? `
+                                <div style="margin-top: 10px; padding: 10px; background: #f9f9f9; border: 2px dashed #000; border-radius: 8px; font-size: 0.9em;">
+                                    <strong style="text-decoration: underline;">Reasons:</strong>
+                                    <ul style="margin-top: 8px; margin-left: 20px;">
+                                        ${pred.reasons.map(reason => `<li style="margin-bottom: 5px;">${reason}</li>`).join('')}
+                                    </ul>
+                                </div>
+                            ` : '<div style="margin-top: 10px; padding: 10px; font-size: 0.9em; opacity: 0.7;">No specific reasons available</div>'}
+                        </div>
                     </div>
                 `).join('')}
             </div>
@@ -820,5 +855,29 @@ function showError(message) {
     const errorDiv = document.getElementById('errorMessage');
     errorDiv.textContent = message;
     errorDiv.classList.remove('hidden');
+}
+
+/**
+ * Setup prediction reason toggles
+ */
+function setupPredictionReasons() {
+    const reasonToggles = document.querySelectorAll('.reason-toggle');
+    
+    reasonToggles.forEach(toggle => {
+        toggle.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const targetId = toggle.getAttribute('data-target');
+            const reasonsDiv = document.getElementById(targetId);
+            
+            if (reasonsDiv) {
+                reasonsDiv.classList.toggle('hidden');
+                if (reasonsDiv.classList.contains('hidden')) {
+                    toggle.textContent = 'Why?';
+                } else {
+                    toggle.textContent = 'Hide';
+                }
+            }
+        });
+    });
 }
 

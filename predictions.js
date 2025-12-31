@@ -73,7 +73,38 @@ function predictOver15(match) {
     const awayInjuryImpact = calculateInjuryImpact(match.injuries.away, false);
     probability *= (homeInjuryImpact + awayInjuryImpact) / 2;
     
-    return Math.min(0.95, Math.max(0.05, probability));
+    const finalProb = Math.min(0.95, Math.max(0.05, probability));
+    
+    // Generate reasons
+    const reasons = [];
+    if (expectedGoals > 2.0) {
+        reasons.push(`High expected goals (${expectedGoals.toFixed(1)}) based on both teams' scoring averages`);
+    } else if (expectedGoals > 1.5) {
+        reasons.push(`Moderate expected goals (${expectedGoals.toFixed(1)}) from team statistics`);
+    } else {
+        reasons.push(`Lower expected goals (${expectedGoals.toFixed(1)}) - teams tend to score less`);
+    }
+    
+    if (homeFormPoints + awayFormPoints > 20) {
+        reasons.push(`Both teams in good form (${homeFormPoints + awayFormPoints}/30 points)`);
+    } else if (homeFormPoints + awayFormPoints < 10) {
+        reasons.push(`Both teams struggling for form (${homeFormPoints + awayFormPoints}/30 points)`);
+    }
+    
+    if (match.injuries.home.length === 0 && match.injuries.away.length === 0) {
+        reasons.push('No major injuries - full squads available');
+    } else if (match.injuries.home.length + match.injuries.away.length > 3) {
+        reasons.push(`${match.injuries.home.length + match.injuries.away.length} injuries may reduce goal-scoring`);
+    }
+    
+    if (homeStats.avgScored > 2 || awayStats.avgScored > 2) {
+        reasons.push(`Strong attacking teams (${match.homeTeam}: ${homeStats.avgScored.toFixed(1)} goals/game, ${match.awayTeam}: ${awayStats.avgScored.toFixed(1)} goals/game)`);
+    }
+    
+    return {
+        probability: finalProb,
+        reasons: reasons
+    };
 }
 
 /**
@@ -102,7 +133,34 @@ function predictBTTS(match) {
     const awayInjuryImpact = calculateInjuryImpact(match.injuries.away, false);
     probability *= (homeInjuryImpact + awayInjuryImpact) / 2;
     
-    return Math.min(0.95, Math.max(0.05, probability));
+    const finalProb = Math.min(0.95, Math.max(0.05, probability));
+    
+    // Generate reasons
+    const reasons = [];
+    if (match.homeGoalsAvg > 1.5 && match.awayGoalsAvg > 1.5) {
+        reasons.push(`Both teams score regularly (${match.homeTeam}: ${match.homeGoalsAvg.toFixed(1)} goals/game, ${match.awayTeam}: ${match.awayGoalsAvg.toFixed(1)} goals/game)`);
+    } else if (match.homeGoalsAvg < 1.0 || match.awayGoalsAvg < 1.0) {
+        reasons.push(`One or both teams struggle to score (${match.homeTeam}: ${match.homeGoalsAvg.toFixed(1)}, ${match.awayTeam}: ${match.awayGoalsAvg.toFixed(1)} goals/game)`);
+    }
+    
+    if (match.homeConcededAvg > 1.5 && match.awayConcededAvg > 1.5) {
+        reasons.push(`Both teams concede frequently (${match.homeTeam}: ${match.homeConcededAvg.toFixed(1)}, ${match.awayTeam}: ${match.awayConcededAvg.toFixed(1)} conceded/game)`);
+    } else if (match.homeConcededAvg < 0.8 && match.awayConcededAvg < 0.8) {
+        reasons.push(`Strong defensive records may prevent both teams scoring`);
+    }
+    
+    if (homeFormPoints > 10 && awayFormPoints > 10) {
+        reasons.push('Both teams in good form increases scoring chances');
+    }
+    
+    if (match.injuries.home.length > 2 || match.injuries.away.length > 2) {
+        reasons.push(`Injuries (${match.injuries.home.length + match.injuries.away.length} total) may affect attacking options`);
+    }
+    
+    return {
+        probability: finalProb,
+        reasons: reasons
+    };
 }
 
 /**
@@ -128,7 +186,34 @@ function predictOver25(match) {
     const formFactor = (homeFormPoints + awayFormPoints) / 30;
     probability += formFactor * 0.1;
     
-    return Math.min(0.90, Math.max(0.05, probability));
+    const finalProb = Math.min(0.90, Math.max(0.05, probability));
+    
+    // Generate reasons
+    const reasons = [];
+    if (expectedGoals > 2.5) {
+        reasons.push(`Very high expected goals (${expectedGoals.toFixed(1)}) suggests multiple goals likely`);
+    } else if (expectedGoals > 2.0) {
+        reasons.push(`Moderate-high expected goals (${expectedGoals.toFixed(1)})`);
+    } else {
+        reasons.push(`Lower expected goals (${expectedGoals.toFixed(1)}) makes Over 2.5 less likely`);
+    }
+    
+    if (homeStats.avgScored > 2 || awayStats.avgScored > 2) {
+        reasons.push(`High-scoring teams (${match.homeTeam}: ${homeStats.avgScored.toFixed(1)} or ${match.awayTeam}: ${awayStats.avgScored.toFixed(1)} goals/game) boost probability`);
+    }
+    
+    if (homeFormPoints + awayFormPoints > 22) {
+        reasons.push(`Excellent combined form (${homeFormPoints + awayFormPoints}/30) increases goal potential`);
+    }
+    
+    if (match.homeConcededAvg > 1.5 || match.awayConcededAvg > 1.5) {
+        reasons.push(`Defensive vulnerabilities (${match.homeTeam}: ${match.homeConcededAvg.toFixed(1)}, ${match.awayTeam}: ${match.awayConcededAvg.toFixed(1)} conceded/game)`);
+    }
+    
+    return {
+        probability: finalProb,
+        reasons: reasons
+    };
 }
 
 /**
@@ -174,10 +259,67 @@ function predictWinner(match) {
     drawProb /= total;
     awayWinProb /= total;
     
+    const finalHome = Math.min(0.95, Math.max(0.05, homeWinProb));
+    const finalDraw = Math.min(0.95, Math.max(0.05, drawProb));
+    const finalAway = Math.min(0.95, Math.max(0.05, awayWinProb));
+    
+    // Generate reasons for each outcome
+    const homeReasons = [];
+    const awayReasons = [];
+    const drawReasons = [];
+    
+    // Home win reasons
+    if (homeFormPoints > awayFormPoints + 3) {
+        homeReasons.push(`${match.homeTeam} in much better form (${homeFormPoints} vs ${awayFormPoints} points)`);
+    } else if (homeFormPoints > awayFormPoints) {
+        homeReasons.push(`${match.homeTeam} slightly better form`);
+    }
+    
+    if (match.headToHead.homeWins > match.headToHead.awayWins) {
+        homeReasons.push(`Historical advantage (${match.headToHead.homeWins}-${match.headToHead.awayWins} in H2H)`);
+    }
+    
+    homeReasons.push('Home advantage typically adds 10% to win probability');
+    
+    if (match.injuries.away.length > match.injuries.home.length) {
+        homeReasons.push(`${match.awayTeam} has more injuries (${match.injuries.away.length} vs ${match.injuries.home.length})`);
+    }
+    
+    // Away win reasons
+    if (awayFormPoints > homeFormPoints + 3) {
+        awayReasons.push(`${match.awayTeam} in much better form (${awayFormPoints} vs ${homeFormPoints} points)`);
+    } else if (awayFormPoints > homeFormPoints) {
+        awayReasons.push(`${match.awayTeam} slightly better form`);
+    }
+    
+    if (match.headToHead.awayWins > match.headToHead.homeWins) {
+        awayReasons.push(`Historical advantage (${match.headToHead.awayWins}-${match.headToHead.homeWins} in H2H)`);
+    }
+    
+    if (match.injuries.home.length > match.injuries.away.length) {
+        awayReasons.push(`${match.homeTeam} has more injuries (${match.injuries.home.length} vs ${match.injuries.away.length})`);
+    }
+    
+    // Draw reasons
+    if (Math.abs(homeFormPoints - awayFormPoints) <= 2) {
+        drawReasons.push('Very evenly matched teams based on form');
+    }
+    
+    if (match.headToHead.draws > 2) {
+        drawReasons.push(`History shows ${match.headToHead.draws} draws between these teams`);
+    }
+    
+    if (match.homeGoalsAvg === match.awayGoalsAvg || Math.abs(match.homeGoalsAvg - match.awayGoalsAvg) < 0.3) {
+        drawReasons.push('Similar goal-scoring averages suggest close match');
+    }
+    
     return {
-        home: Math.min(0.95, Math.max(0.05, homeWinProb)),
-        draw: Math.min(0.95, Math.max(0.05, drawProb)),
-        away: Math.min(0.95, Math.max(0.05, awayWinProb))
+        home: finalHome,
+        draw: finalDraw,
+        away: finalAway,
+        homeReasons: homeReasons,
+        awayReasons: awayReasons,
+        drawReasons: drawReasons
     };
 }
 
@@ -193,33 +335,39 @@ function generatePredictions(match) {
     const predictions = [
         {
             type: 'Over 1.5 Goals',
-            probability: over15,
-            points: Math.round(over15 * 100)
+            probability: over15.probability,
+            points: Math.round(over15.probability * 100),
+            reasons: over15.reasons
         },
         {
             type: 'Both Teams to Score',
-            probability: btts,
-            points: Math.round(btts * 100)
+            probability: btts.probability,
+            points: Math.round(btts.probability * 100),
+            reasons: btts.reasons
         },
         {
             type: 'Over 2.5 Goals',
-            probability: over25,
-            points: Math.round(over25 * 100)
+            probability: over25.probability,
+            points: Math.round(over25.probability * 100),
+            reasons: over25.reasons
         },
         {
             type: `${match.homeTeam} Win`,
             probability: winner.home,
-            points: Math.round(winner.home * 100)
+            points: Math.round(winner.home * 100),
+            reasons: winner.homeReasons
         },
         {
             type: 'Draw',
             probability: winner.draw,
-            points: Math.round(winner.draw * 100)
+            points: Math.round(winner.draw * 100),
+            reasons: winner.drawReasons
         },
         {
             type: `${match.awayTeam} Win`,
             probability: winner.away,
-            points: Math.round(winner.away * 100)
+            points: Math.round(winner.away * 100),
+            reasons: winner.awayReasons
         }
     ];
     
