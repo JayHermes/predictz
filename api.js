@@ -1017,7 +1017,7 @@ async function fetchMatchLineups(fixtureId) {
 }
 
 /**
- * Fetch team news using NewsAPI
+ * Fetch team news using NewsAPI (RapidAPI)
  */
 async function fetchTeamNewsFromAPI(teamName) {
     if (!API_CONFIG.newsAPI.enabled || !API_CONFIG.newsAPI.apiKey || 
@@ -1026,30 +1026,55 @@ async function fetchTeamNewsFromAPI(teamName) {
     }
     
     try {
-        // Search for team news
-        const query = encodeURIComponent(`${teamName} football`);
-        const url = `${API_CONFIG.newsAPI.baseUrl}/everything?q=${query}&language=en&sortBy=publishedAt&pageSize=5&apiKey=${API_CONFIG.newsAPI.apiKey}`;
+        let url;
+        let headers;
         
-        const response = await fetch(url);
+        if (API_CONFIG.newsAPI.provider === 'rapidapi') {
+            // Using RapidAPI News API
+            const query = encodeURIComponent(`${teamName} football`);
+            // Try search endpoint - adjust based on actual RapidAPI News API structure
+            url = `${API_CONFIG.newsAPI.baseUrl}/search?q=${query}&language=en&limit=5`;
+            headers = API_CONFIG.newsAPI.headers;
+        } else {
+            // Using standalone NewsAPI.org
+            const query = encodeURIComponent(`${teamName} football`);
+            url = `${API_CONFIG.newsAPI.baseUrl}/everything?q=${query}&language=en&sortBy=publishedAt&pageSize=5&apiKey=${API_CONFIG.newsAPI.apiKey}`;
+            headers = {};
+        }
+        
+        const response = await fetch(url, { headers });
         
         if (!response.ok) {
+            console.warn(`NewsAPI response not OK: ${response.status}`);
             return null;
         }
         
         const data = await response.json();
-        const articles = data.articles || [];
+        
+        // Handle different response formats
+        let articles = [];
+        if (data.articles) {
+            articles = data.articles;
+        } else if (data.data) {
+            articles = data.data;
+        } else if (data.results) {
+            articles = data.results;
+        } else if (Array.isArray(data)) {
+            articles = data;
+        }
         
         if (articles.length === 0) {
             return null;
         }
         
         // Return most recent relevant article
+        const article = articles[0];
         return {
-            title: articles[0].title,
-            description: articles[0].description,
-            url: articles[0].url,
-            publishedAt: articles[0].publishedAt,
-            source: articles[0].source?.name
+            title: article.title || article.headline || 'News',
+            description: article.description || article.summary || article.snippet || '',
+            url: article.url || article.link || article.web_url || '',
+            publishedAt: article.publishedAt || article.published_date || article.pub_date || new Date().toISOString(),
+            source: article.source?.name || article.source || article.publisher || 'News API'
         };
     } catch (error) {
         console.warn('Error fetching team news:', error);
