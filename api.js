@@ -409,17 +409,33 @@ async function transformFootballDataMatches(apiMatches) {
         }
         
         // Try to find API-Football fixture ID and fetch injuries/lineups
+        // Note: This is optional - if it fails, we continue without injuries
         let injuries = { home: [], away: [] };
         let apiFootballFixtureId = null;
         
         if (API_CONFIG.apiFootball.enabled) {
             try {
-                apiFootballFixtureId = await findApiFootballFixtureId(homeTeam, awayTeam, matchDate.toISOString().split('T')[0]);
+                // Only try to fetch if we haven't hit rate limits
+                // This is a best-effort call - failures are OK
+                apiFootballFixtureId = await Promise.race([
+                    findApiFootballFixtureId(homeTeam, awayTeam, matchDate.toISOString().split('T')[0]),
+                    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
+                ]).catch(() => null); // Silently fail - injuries are optional
+                
                 if (apiFootballFixtureId) {
-                    injuries = await fetchMatchInjuries(apiFootballFixtureId);
+                    try {
+                        injuries = await Promise.race([
+                            fetchMatchInjuries(apiFootballFixtureId),
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
+                        ]).catch(() => ({ home: [], away: [] })); // Return empty on failure
+                    } catch (error) {
+                        // Silently continue - injuries are optional
+                        console.debug('Could not fetch injuries (optional):', error.message);
+                    }
                 }
             } catch (error) {
-                console.warn('Error fetching injuries from API-Football:', error);
+                // Silently continue - injuries are optional data
+                console.debug('API-Football unavailable (optional):', error.message);
             }
         }
         
@@ -975,7 +991,12 @@ async function findApiFootballFixtureId(homeTeamName, awayTeamName, matchDate) {
         const url = `/api/api-football?endpoint=fixtures&date=${matchDate}`;
         const response = await fetch(url);
         
+        // Handle rate limits and errors gracefully
         if (!response.ok) {
+            if (response.status === 429 || response.status === 403) {
+                // Rate limit or forbidden - return null silently
+                return null;
+            }
             return null;
         }
         

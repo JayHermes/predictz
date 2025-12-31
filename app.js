@@ -51,7 +51,10 @@ function setupTabs() {
             
             // Add active class to clicked tab
             btn.classList.add('active');
-            document.getElementById(`${targetTab}Tab`).classList.add('active');
+            const targetTabElement = document.getElementById(`${targetTab}Tab`);
+            if (targetTabElement) {
+                targetTabElement.classList.add('active');
+            }
             
             // Clear container when switching tabs
             document.getElementById('matchesContainer').innerHTML = '';
