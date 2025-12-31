@@ -366,6 +366,21 @@ async function transformFootballDataMatches(apiMatches) {
             }
         }
         
+        // Try to find API-Football fixture ID and fetch injuries/lineups
+        let injuries = { home: [], away: [] };
+        let apiFootballFixtureId = null;
+        
+        if (API_CONFIG.apiFootball.enabled) {
+            try {
+                apiFootballFixtureId = await findApiFootballFixtureId(homeTeam, awayTeam, matchDate.toISOString().split('T')[0]);
+                if (apiFootballFixtureId) {
+                    injuries = await fetchMatchInjuries(apiFootballFixtureId);
+                }
+            } catch (error) {
+                console.warn('Error fetching injuries from API-Football:', error);
+            }
+        }
+        
         return {
             id: match.id,
             homeTeam: homeTeam,
@@ -380,23 +395,22 @@ async function transformFootballDataMatches(apiMatches) {
             homeConcededAvg: homeStats?.goalsAgainstAvg || 1.1,
             awayConcededAvg: awayStats?.goalsAgainstAvg || 1.2,
             headToHead: { homeWins: 0, awayWins: 0, draws: 0 }, // Would need H2H API call
-            injuries: {
-                home: [], // Will be populated if API-Football is enabled
-                away: []
-            },
+            injuries: injuries, // Real injuries from API-Football if available
             teamNews: {
                 home: 'Data from Football-Data.org API', // Real data source
                 away: 'Data from Football-Data.org API'
             },
-            // Store fixture ID for API-Football lookups
-            fixtureId: null, // Will be set if we can map to API-Football fixture
+            // Store IDs for API-Football lookups
+            fixtureId: apiFootballFixtureId, // API-Football fixture ID
+            homeTeamId: homeTeamId, // Store for API-Football lookups
+            awayTeamId: awayTeamId, // Store for API-Football lookups
             status: match.status,
             score: match.score,
             dataSource: homeStats && awayStats ? 'real' : 'partial', // Indicate data quality
             realData: {
                 hasRealStats: !!homeStats && !!awayStats,
                 hasRealForm: !homeForm.includes('?') && !awayForm.includes('?'),
-                hasRealInjuries: false, // Not available in free tier
+                hasRealInjuries: injuries.home.length > 0 || injuries.away.length > 0, // From API-Football
                 hasRealNews: false // Would need news API
             }
         };
@@ -887,11 +901,50 @@ function generateTeamPrediction(wins, draws, losses, goalsPerGame, concededPerGa
 }
 
 /**
+ * Find API-Football fixture ID by team names and date
+ */
+async function findApiFootballFixtureId(homeTeamName, awayTeamName, matchDate) {
+    if (!API_CONFIG.apiFootball.enabled || !API_CONFIG.apiFootball.apiKey || 
+        API_CONFIG.apiFootball.apiKey === 'YOUR_RAPIDAPI_KEY_HERE') {
+        return null;
+    }
+    
+    try {
+        // Search for fixtures on the match date
+        const url = `${API_CONFIG.apiFootball.baseUrl}/fixtures?date=${matchDate}`;
+        const response = await fetch(url, { headers: API_CONFIG.apiFootball.headers });
+        
+        if (!response.ok) {
+            return null;
+        }
+        
+        const data = await response.json();
+        const fixtures = data.response || [];
+        
+        // Find matching fixture by team names
+        const fixture = fixtures.find(f => {
+            const home = f.teams?.home?.name?.toLowerCase() || '';
+            const away = f.teams?.away?.name?.toLowerCase() || '';
+            const searchHome = homeTeamName.toLowerCase();
+            const searchAway = awayTeamName.toLowerCase();
+            
+            return (home.includes(searchHome) || searchHome.includes(home)) &&
+                   (away.includes(searchAway) || searchAway.includes(away));
+        });
+        
+        return fixture?.fixture?.id || null;
+    } catch (error) {
+        console.warn('Error finding API-Football fixture:', error);
+        return null;
+    }
+}
+
+/**
  * Fetch injuries for a match using API-Football
  */
 async function fetchMatchInjuries(fixtureId) {
     if (!API_CONFIG.apiFootball.enabled || !API_CONFIG.apiFootball.apiKey || 
-        API_CONFIG.apiFootball.apiKey === 'YOUR_RAPIDAPI_KEY_HERE') {
+        API_CONFIG.apiFootball.apiKey === 'YOUR_RAPIDAPI_KEY_HERE' || !fixtureId) {
         return { home: [], away: [] };
     }
     
@@ -914,7 +967,9 @@ async function fetchMatchInjuries(fixtureId) {
             const injuryType = injury.player?.reason || 'Injury';
             const injuryInfo = `${playerName} (${injuryType})`;
             
-            if (injury.team?.id === data.response[0]?.team?.id) {
+            // Determine which team the injury belongs to
+            const teamId = injury.team?.id;
+            if (injuries.length > 0 && teamId === injuries[0]?.team?.id) {
                 homeInjuries.push(injuryInfo);
             } else {
                 awayInjuries.push(injuryInfo);
