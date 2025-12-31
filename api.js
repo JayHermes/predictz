@@ -156,43 +156,34 @@ async function fetchMatches(league = 'all') {
         let url;
         let headers = { ...API_CONFIG.headers };
         
+        // Use Vercel serverless function to avoid CORS issues
+        const today = new Date();
+        const nextWeek = new Date(today);
+        nextWeek.setDate(nextWeek.getDate() + 7);
+        const todayStr = today.toISOString().split('T')[0];
+        const nextWeekStr = nextWeek.toISOString().split('T')[0];
+        
+        let proxyUrl;
         if (API_CONFIG.provider === 'football-data') {
-            // Football-Data.org API
             if (league === 'all') {
-                // Get matches for today and next 7 days (in case no matches today)
-                const today = new Date();
-                const nextWeek = new Date(today);
-                nextWeek.setDate(nextWeek.getDate() + 7);
-                const todayStr = today.toISOString().split('T')[0];
-                const nextWeekStr = nextWeek.toISOString().split('T')[0];
-                url = `${API_CONFIG.baseUrl}/matches?dateFrom=${todayStr}&dateTo=${nextWeekStr}`;
-                console.log(`🔍 Fetching matches from ${todayStr} to ${nextWeekStr}`);
+                proxyUrl = `/api/football-data?endpoint=matches&dateFrom=${todayStr}&dateTo=${nextWeekStr}`;
+                console.log(`🔍 Fetching matches from ${todayStr} to ${nextWeekStr} via proxy`);
             } else {
                 const leagueId = API_CONFIG.leagueIds[league];
                 if (!leagueId) {
                     console.warn(`League ${league} not found, using mock data`);
                     return MOCK_MATCHES.map(m => ({ ...m, dataSource: 'mock', realData: { hasRealStats: false, hasRealForm: false, hasRealInjuries: false, hasRealNews: false } }));
                 }
-                const today = new Date();
-                const nextWeek = new Date(today);
-                nextWeek.setDate(nextWeek.getDate() + 7);
-                const todayStr = today.toISOString().split('T')[0];
-                const nextWeekStr = nextWeek.toISOString().split('T')[0];
-                url = `${API_CONFIG.baseUrl}/competitions/${leagueId}/matches?dateFrom=${todayStr}&dateTo=${nextWeekStr}`;
-                console.log(`🔍 Fetching ${league} matches from ${todayStr} to ${nextWeekStr}`);
+                proxyUrl = `/api/football-data?endpoint=league-matches&leagueId=${leagueId}&dateFrom=${todayStr}&dateTo=${nextWeekStr}`;
+                console.log(`🔍 Fetching ${league} matches from ${todayStr} to ${nextWeekStr} via proxy`);
             }
         } else if (API_CONFIG.provider === 'api-football') {
-            // API-Football via RapidAPI
             const leagueId = API_CONFIG.leagueIds[league] || 'all';
-            const today = new Date().toISOString().split('T')[0];
-            url = `${API_CONFIG.baseUrl}/fixtures?date=${today}&league=${leagueId}`;
+            proxyUrl = `/api/api-football?endpoint=fixtures&date=${todayStr}&league=${leagueId}`;
         }
         
-        console.log(`🌐 Fetching from: ${url}`);
-        
-        // Use CORS proxy if configured
-        const fetchUrl = API_CONFIG.corsProxy ? `${API_CONFIG.corsProxy}${url}` : url;
-        const response = await fetch(fetchUrl, { headers });
+        console.log(`🌐 Fetching from proxy: ${proxyUrl}`);
+        const response = await fetch(proxyUrl);
         
         console.log(`📡 Response status: ${response.status} ${response.statusText}`);
         
@@ -261,8 +252,9 @@ async function fetchMatches(league = 'all') {
  */
 async function fetchTeamStandings(competitionId) {
     try {
-        const url = `${API_CONFIG.baseUrl}/competitions/${competitionId}/standings`;
-        const response = await fetch(url, { headers: API_CONFIG.headers });
+        // Use Vercel proxy to avoid CORS
+        const url = `/api/football-data?endpoint=standings&leagueId=${competitionId}`;
+        const response = await fetch(url);
         
         if (!response.ok) {
             console.warn('Could not fetch standings');
@@ -282,8 +274,9 @@ async function fetchTeamStandings(competitionId) {
  */
 async function fetchTeamRecentMatches(teamId, limit = 5) {
     try {
-        const url = `${API_CONFIG.baseUrl}/teams/${teamId}/matches?limit=${limit}`;
-        const response = await fetch(url, { headers: API_CONFIG.headers });
+        // Use Vercel proxy to avoid CORS
+        const url = `/api/football-data?endpoint=team-matches&teamId=${teamId}&limit=${limit}`;
+        const response = await fetch(url);
         
         if (!response.ok) {
             return null;
@@ -556,8 +549,9 @@ async function findTeamId(teamName) {
         
         for (const compId of competitions) {
             try {
-                const url = `${API_CONFIG.baseUrl}/competitions/${compId}/teams`;
-                const response = await fetch(url, { headers: API_CONFIG.headers });
+                // Use Vercel proxy to avoid CORS
+                const url = `/api/football-data?endpoint=teams&leagueId=${compId}`;
+                const response = await fetch(url);
                 
                 if (response.ok) {
                     const data = await response.json();
@@ -754,10 +748,17 @@ async function fetchTeamAnalysis(teamName) {
             throw new Error('Team not found');
         }
         
-        // Fetch team details
-        const teamUrl = `${API_CONFIG.baseUrl}/teams/${teamId}`;
-        const teamResponse = await fetch(teamUrl, { headers: API_CONFIG.headers });
-        const teamData = await teamResponse.ok ? await teamResponse.json() : null;
+        // Fetch team details - use proxy
+        let teamData = null;
+        try {
+            const teamUrl = `/api/football-data?endpoint=team&teamId=${teamId}`;
+            const teamResponse = await fetch(teamUrl);
+            if (teamResponse.ok) {
+                teamData = await teamResponse.json();
+            }
+        } catch (error) {
+            console.warn('Could not fetch team details:', error);
+        }
         
         // Fetch recent matches for form and stats
         const matches = await fetchTeamRecentMatches(teamId, 20);
@@ -818,13 +819,15 @@ async function fetchTeamAnalysis(teamName) {
                     if (team) {
                         position = team.position || 0;
                         points = team.points || 0;
-                        // Get league name from competition
-                        const compUrl = `${API_CONFIG.baseUrl}/competitions/${compId}`;
-                        const compResponse = await fetch(compUrl, { headers: API_CONFIG.headers });
-                        if (compResponse.ok) {
-                            const compData = await compResponse.json();
-                            league = compData.name || league;
-                        }
+                        // Get league name - use competition ID to determine league name
+                        const leagueNames = {
+                            2021: 'Premier League',
+                            2014: 'La Liga',
+                            2019: 'Serie A',
+                            2002: 'Bundesliga',
+                            2015: 'Ligue 1'
+                        };
+                        league = leagueNames[compId] || league;
                         break;
                     }
                 }
@@ -833,10 +836,19 @@ async function fetchTeamAnalysis(teamName) {
             }
         }
         
-        // Get next match
-        const upcomingMatches = await fetch(`${API_CONFIG.baseUrl}/teams/${teamId}/matches?status=SCHEDULED&limit=1`, 
-            { headers: API_CONFIG.headers }).then(r => r.ok ? r.json() : null);
-        const nextMatch = upcomingMatches?.matches?.[0];
+        // Get next match - use proxy
+        let nextMatch = null;
+        try {
+            const upcomingUrl = `/api/football-data?endpoint=team-matches&teamId=${teamId}&limit=20`;
+            const upcomingResponse = await fetch(upcomingUrl);
+            if (upcomingResponse.ok) {
+                const upcomingData = await upcomingResponse.json();
+                // Find first scheduled match
+                nextMatch = upcomingData.matches?.find(m => m.status === 'SCHEDULED') || upcomingData.matches?.[0];
+            }
+        } catch (error) {
+            console.warn('Could not fetch next match:', error);
+        }
         
         // Generate analysis
         const goalsPerGame = played > 0 ? goalsFor / played : 0;
@@ -998,8 +1010,9 @@ async function fetchMatchInjuries(fixtureId) {
     }
     
     try {
-        const url = `${API_CONFIG.apiFootball.baseUrl}/injuries?fixture=${fixtureId}`;
-        const response = await fetch(url, { headers: API_CONFIG.apiFootball.headers });
+        // Use Vercel proxy to avoid CORS
+        const url = `/api/api-football?endpoint=injuries&fixtureId=${fixtureId}`;
+        const response = await fetch(url);
         
         if (!response.ok) {
             return { home: [], away: [] };
@@ -1042,8 +1055,9 @@ async function fetchMatchLineups(fixtureId) {
     }
     
     try {
-        const url = `${API_CONFIG.apiFootball.baseUrl}/fixtures/lineups?fixture=${fixtureId}`;
-        const response = await fetch(url, { headers: API_CONFIG.apiFootball.headers });
+        // Use Vercel proxy to avoid CORS
+        const url = `/api/api-football?endpoint=lineups&fixtureId=${fixtureId}`;
+        const response = await fetch(url);
         
         if (!response.ok) {
             return null;
@@ -1073,20 +1087,10 @@ async function fetchTeamNewsFromAPI(teamName) {
         let url;
         let headers;
         
-        if (API_CONFIG.newsAPI.provider === 'rapidapi') {
-            // Using RapidAPI News API
-            const query = encodeURIComponent(`${teamName} football`);
-            // Try search endpoint - adjust based on actual RapidAPI News API structure
-            url = `${API_CONFIG.newsAPI.baseUrl}/search?q=${query}&language=en&limit=5`;
-            headers = API_CONFIG.newsAPI.headers;
-        } else {
-            // Using standalone NewsAPI.org
-            const query = encodeURIComponent(`${teamName} football`);
-            url = `${API_CONFIG.newsAPI.baseUrl}/everything?q=${query}&language=en&sortBy=publishedAt&pageSize=5&apiKey=${API_CONFIG.newsAPI.apiKey}`;
-            headers = {};
-        }
-        
-        const response = await fetch(url, { headers });
+        // Use Vercel proxy to avoid CORS
+        const query = encodeURIComponent(`${teamName} football`);
+        const url = `/api/news?q=${query}&limit=5`;
+        const response = await fetch(url);
         
         if (!response.ok) {
             console.warn(`NewsAPI response not OK: ${response.status}`);
@@ -1136,8 +1140,9 @@ async function fetchPlayerStats(teamId, season = 2024) {
     }
     
     try {
-        const url = `${API_CONFIG.apiFootball.baseUrl}/players?team=${teamId}&season=${season}`;
-        const response = await fetch(url, { headers: API_CONFIG.apiFootball.headers });
+        // Use Vercel proxy to avoid CORS
+        const url = `/api/api-football?endpoint=players&teamId=${teamId}&season=${season}`;
+        const response = await fetch(url);
         
         if (!response.ok) {
             return null;
