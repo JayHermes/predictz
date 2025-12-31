@@ -52,6 +52,261 @@ header h1 {
     transform: rotate(-0.5deg);
 }
 
+.tabs {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-bottom: 30px;
+    flex-wrap: wrap;
+}
+
+.tab-btn {
+    padding: 12px 24px;
+    font-size: 18px;
+    font-family: 'Kalam', cursive;
+    font-weight: 700;
+    border: 3px solid #000000;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: #ffffff;
+    color: #000000;
+    box-shadow: 3px 3px 0px #000000;
+    transform: rotate(-0.5deg);
+}
+
+.tab-btn:hover {
+    transform: rotate(0deg) translate(-2px, -2px);
+    box-shadow: 5px 5px 0px #000000;
+    background: #f0f0f0;
+}
+
+.tab-btn.active {
+    background: #000000;
+    color: #ffffff;
+    transform: rotate(0deg);
+}
+
+.tab-btn.active:hover {
+    background: #333333;
+    color: #ffffff;
+}
+
+.tab-content {
+    display: none;
+}
+
+.tab-content.active {
+    display: block;
+}
+
+.h2h-container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 30px;
+    background: #f9f9f9;
+    border: 3px solid #000000;
+    border-radius: 20px;
+    box-shadow: 6px 6px 0px #000000;
+    transform: rotate(0.5deg);
+}
+
+.h2h-container:hover {
+    transform: rotate(0deg);
+}
+
+.h2h-inputs {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 25px;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.team-input-group {
+    flex: 1;
+    min-width: 250px;
+    position: relative;
+}
+
+.team-input-group label {
+    display: block;
+    font-weight: 700;
+    margin-bottom: 8px;
+    font-size: 1.1em;
+    text-decoration: underline;
+}
+
+.vs-divider {
+    font-size: 2em;
+    font-weight: 700;
+    color: #000000;
+    text-decoration: underline;
+    transform: rotate(-5deg);
+}
+
+.team-analysis-container {
+    max-width: 600px;
+    margin: 0 auto;
+    padding: 30px;
+    background: #f9f9f9;
+    border: 3px solid #000000;
+    border-radius: 20px;
+    box-shadow: 6px 6px 0px #000000;
+    transform: rotate(-0.5deg);
+}
+
+.team-analysis-container:hover {
+    transform: rotate(0deg);
+}
+
+.team-analysis-container .search-container {
+    max-width: 100%;
+    margin-bottom: 20px;
+}
+
+.h2h-result {
+    background: #ffffff;
+    border: 3px solid #000000;
+    border-radius: 15px;
+    padding: 30px;
+    margin-top: 25px;
+    box-shadow: 6px 6px 0px #000000;
+    transform: rotate(-0.5deg);
+}
+
+.h2h-result:hover {
+    transform: rotate(0deg);
+}
+
+.h2h-header {
+    text-align: center;
+    margin-bottom: 25px;
+    padding-bottom: 20px;
+    border-bottom: 3px solid #000000;
+}
+
+.h2h-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 25px;
+}
+
+.h2h-stat {
+    background: #f9f9f9;
+    border: 2px solid #000000;
+    border-radius: 10px;
+    padding: 15px;
+    text-align: center;
+    transform: rotate(0.3deg);
+    transition: all 0.3s ease;
+}
+
+.h2h-stat:hover {
+    transform: rotate(0deg) scale(1.05);
+    box-shadow: 3px 3px 0px #000000;
+}
+
+.h2h-stat-label {
+    font-size: 0.9em;
+    font-weight: 400;
+    margin-bottom: 8px;
+    color: #666666;
+}
+
+.h2h-stat-value {
+    font-size: 2em;
+    font-weight: 700;
+    color: #000000;
+}
+
+.team-analysis-result {
+    background: #ffffff;
+    border: 3px solid #000000;
+    border-radius: 15px;
+    padding: 30px;
+    margin-top: 25px;
+    box-shadow: 6px 6px 0px #000000;
+    transform: rotate(0.5deg);
+}
+
+.team-analysis-result:hover {
+    transform: rotate(0deg);
+}
+
+.analysis-section-title {
+    font-size: 1.5em;
+    font-weight: 700;
+    margin-bottom: 15px;
+    text-decoration: underline;
+    transform: rotate(-0.5deg);
+}
+
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.stat-box {
+    background: #f9f9f9;
+    border: 2px solid #000000;
+    border-radius: 10px;
+    padding: 15px;
+    text-align: center;
+    transform: rotate(0.2deg);
+    transition: all 0.3s ease;
+}
+
+.stat-box:hover {
+    transform: rotate(0deg) scale(1.05);
+}
+
+.stat-label {
+    font-size: 0.85em;
+    font-weight: 400;
+    margin-bottom: 5px;
+    color: #666666;
+}
+
+.stat-value {
+    font-size: 1.8em;
+    font-weight: 700;
+    color: #000000;
+}
+
+.strengths-weaknesses {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.strength-item, .weakness-item {
+    padding: 10px;
+    border: 2px solid #000000;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    background: #f9f9f9;
+    transform: rotate(0.2deg);
+    transition: all 0.2s ease;
+}
+
+.strength-item:hover, .weakness-item:hover {
+    transform: rotate(0deg) translateX(5px);
+}
+
+.strength-item {
+    border-color: #000000;
+}
+
+.weakness-item {
+    border-color: #666666;
+}
+
 .controls {
     display: flex;
     gap: 15px;

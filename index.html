@@ -9,25 +9,74 @@
 <body>
     <div class="container">
         <header>
-            <h1>⚽ Predictz</h1>
+            <h1>Predictz</h1>
             <p class="subtitle">AI-Powered Football Match Predictions</p>
         </header>
 
-        <div class="controls">
-            <div class="search-container">
-                <input type="text" id="clubSearch" class="club-search" placeholder="Search for a club..." autocomplete="off">
-                <div id="suggestions" class="suggestions hidden"></div>
-            </div>
-            <button id="fetchMatches" class="btn btn-primary">Fetch Today's Matches</button>
-            <select id="leagueSelect" class="select">
-                <option value="all">All Leagues</option>
-                <option value="premier-league">Premier League</option>
-                <option value="la-liga">La Liga</option>
-                <option value="serie-a">Serie A</option>
-                <option value="bundesliga">Bundesliga</option>
-                <option value="ligue-1">Ligue 1</option>
-            </select>
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="matches">Today's Matches</button>
+            <button class="tab-btn" data-tab="h2h">Head-to-Head</button>
+            <button class="tab-btn" data-tab="team-analysis">Team Analysis</button>
         </div>
+
+        <!-- Matches Tab -->
+        <div id="matchesTab" class="tab-content active">
+            <div class="controls">
+                <div class="search-container">
+                    <input type="text" id="clubSearch" class="club-search" placeholder="Search for a club..." autocomplete="off">
+                    <div id="suggestions" class="suggestions hidden"></div>
+                </div>
+                <button id="fetchMatches" class="btn btn-primary">Fetch Today's Matches</button>
+                <select id="leagueSelect" class="select">
+                    <option value="all">All Leagues</option>
+                    <option value="premier-league">Premier League</option>
+                    <option value="la-liga">La Liga</option>
+                    <option value="serie-a">Serie A</option>
+                    <option value="bundesliga">Bundesliga</option>
+                    <option value="ligue-1">Ligue 1</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- H2H Tab -->
+        <div id="h2hTab" class="tab-content">
+            <div class="h2h-container">
+                <div class="h2h-inputs">
+                    <div class="team-input-group">
+                        <label>Team 1</label>
+                        <input type="text" id="team1Input" class="club-search" placeholder="Enter first team..." autocomplete="off">
+                        <div id="suggestions1" class="suggestions hidden"></div>
+                    </div>
+                    <div class="vs-divider">VS</div>
+                    <div class="team-input-group">
+                        <label>Team 2</label>
+                        <input type="text" id="team2Input" class="club-search" placeholder="Enter second team..." autocomplete="off">
+                        <div id="suggestions2" class="suggestions hidden"></div>
+                    </div>
+                </div>
+                <button id="compareH2H" class="btn btn-primary">Compare Teams</button>
+            </div>
+        </div>
+
+        <!-- Team Analysis Tab -->
+        <div id="teamAnalysisTab" class="tab-content">
+            <div class="team-analysis-container">
+                <div class="search-container">
+                    <input type="text" id="teamAnalysisSearch" class="club-search" placeholder="Search for a team to analyze..." autocomplete="off">
+                    <div id="suggestionsAnalysis" class="suggestions hidden"></div>
+                </div>
+                <button id="analyzeTeam" class="btn btn-primary">Analyze Team</button>
+            </div>
+        </div>
+        
+        <div id="errorMessage" class="error-message hidden"></div>
+
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Analyzing matches...</p>
+        </div>
+
+        <div id="matchesContainer" class="matches-container"></div>
         
         <div id="errorMessage" class="error-message hidden"></div>
 

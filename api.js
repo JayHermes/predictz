@@ -32,14 +32,27 @@ const API_CONFIG = {
     useMockData: false
 };
 
+// Helper function to get current date
+function getCurrentDate() {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+}
+
+// Helper function to get current time
+function getCurrentTime() {
+    const now = new Date();
+    return now.toTimeString().split(' ')[0].substring(0, 5);
+}
+
 // Mock data for demonstration (replace with actual API calls)
+// Using current date for fixtures
 const MOCK_MATCHES = [
     {
         id: 1,
         homeTeam: 'Manchester United',
         awayTeam: 'Liverpool',
         league: 'Premier League',
-        date: '2024-01-15',
+        date: getCurrentDate(),
         time: '15:00',
         homeForm: ['W', 'W', 'L', 'W', 'D'],
         awayForm: ['W', 'D', 'W', 'W', 'W'],
@@ -62,7 +75,7 @@ const MOCK_MATCHES = [
         homeTeam: 'Barcelona',
         awayTeam: 'Real Madrid',
         league: 'La Liga',
-        date: '2024-01-15',
+        date: getCurrentDate(),
         time: '20:00',
         homeForm: ['W', 'W', 'W', 'D', 'W'],
         awayForm: ['W', 'L', 'W', 'W', 'D'],
@@ -85,7 +98,7 @@ const MOCK_MATCHES = [
         homeTeam: 'Bayern Munich',
         awayTeam: 'Borussia Dortmund',
         league: 'Bundesliga',
-        date: '2024-01-15',
+        date: getCurrentDate(),
         time: '17:30',
         homeForm: ['W', 'W', 'W', 'W', 'W'],
         awayForm: ['L', 'W', 'D', 'W', 'L'],
@@ -294,6 +307,84 @@ async function fetchTeamNews(teamName) {
     };
 }
 
+/**
+ * Fetch Head-to-Head data between two teams
+ */
+async function fetchHeadToHead(team1, team2) {
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    // In production, fetch from API
+    // For now, return mock data
+    const h2hData = {
+        team1: team1,
+        team2: team2,
+        totalMatches: 25,
+        team1Wins: 10,
+        team2Wins: 8,
+        draws: 7,
+        team1Goals: 32,
+        team2Goals: 28,
+        recentMatches: [
+            { date: getCurrentDate(), team1Score: 2, team2Score: 1, winner: team1 },
+            { date: getCurrentDate(), team1Score: 1, team2Score: 1, winner: 'Draw' },
+            { date: getCurrentDate(), team1Score: 0, team2Score: 2, winner: team2 }
+        ],
+        team1Form: ['W', 'D', 'L', 'W', 'W'],
+        team2Form: ['L', 'W', 'W', 'D', 'L'],
+        team1GoalsAvg: 1.6,
+        team2GoalsAvg: 1.4,
+        team1ConcededAvg: 1.2,
+        team2ConcededAvg: 1.3
+    };
+    
+    return h2hData;
+}
+
+/**
+ * Fetch comprehensive team analysis
+ */
+async function fetchTeamAnalysis(teamName) {
+    // Simulate API delay
+    await new Promise(resolve => setTimeout(resolve, 800));
+    
+    // In production, fetch from API
+    // For now, return mock data
+    const analysis = {
+        teamName: teamName,
+        league: 'Premier League',
+        position: 5,
+        played: 20,
+        wins: 12,
+        draws: 5,
+        losses: 3,
+        goalsFor: 45,
+        goalsAgainst: 28,
+        goalDifference: 17,
+        points: 41,
+        recentForm: ['W', 'W', 'L', 'W', 'D'],
+        homeRecord: { wins: 7, draws: 2, losses: 1, goalsFor: 25, goalsAgainst: 12 },
+        awayRecord: { wins: 5, draws: 3, losses: 2, goalsFor: 20, goalsAgainst: 16 },
+        goalsPerGame: 2.25,
+        concededPerGame: 1.4,
+        cleanSheets: 8,
+        topScorer: 'Player Name',
+        topScorerGoals: 12,
+        injuries: ['Player A', 'Player B'],
+        suspensions: [],
+        nextMatch: {
+            opponent: 'Opponent Team',
+            date: getCurrentDate(),
+            venue: 'Home'
+        },
+        strengths: ['Strong attack', 'Good home form', 'Set pieces'],
+        weaknesses: ['Away form', 'Defensive lapses'],
+        prediction: 'Strong team with good attacking options. Likely to finish in top 6.'
+    };
+    
+    return analysis;
+}
+
 // Export functions
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
@@ -301,6 +392,8 @@ if (typeof module !== 'undefined' && module.exports) {
         fetchMatchDetails,
         fetchTeamStats,
         fetchTeamNews,
+        fetchHeadToHead,
+        fetchTeamAnalysis,
         API_CONFIG
     };
 }
