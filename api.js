@@ -471,81 +471,406 @@ async function fetchTeamNews(teamName) {
 }
 
 /**
- * Fetch Head-to-Head data between two teams
+ * Find team ID by name from Football-Data.org
  */
-async function fetchHeadToHead(team1, team2) {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 800));
-    
-    // In production, fetch from API
-    // For now, return mock data
-    const h2hData = {
-        team1: team1,
-        team2: team2,
-        totalMatches: 25,
-        team1Wins: 10,
-        team2Wins: 8,
-        draws: 7,
-        team1Goals: 32,
-        team2Goals: 28,
-        recentMatches: [
-            { date: getCurrentDate(), team1Score: 2, team2Score: 1, winner: team1 },
-            { date: getCurrentDate(), team1Score: 1, team2Score: 1, winner: 'Draw' },
-            { date: getCurrentDate(), team1Score: 0, team2Score: 2, winner: team2 }
-        ],
-        team1Form: ['W', 'D', 'L', 'W', 'W'],
-        team2Form: ['L', 'W', 'W', 'D', 'L'],
-        team1GoalsAvg: 1.6,
-        team2GoalsAvg: 1.4,
-        team1ConcededAvg: 1.2,
-        team2ConcededAvg: 1.3
-    };
-    
-    return h2hData;
+async function findTeamId(teamName) {
+    try {
+        // Search in major competitions
+        const competitions = [2021, 2014, 2019, 2002, 2015]; // PL, La Liga, Serie A, Bundesliga, Ligue 1
+        
+        for (const compId of competitions) {
+            try {
+                const url = `${API_CONFIG.baseUrl}/competitions/${compId}/teams`;
+                const response = await fetch(url, { headers: API_CONFIG.headers });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const team = data.teams?.find(t => 
+                        t.name.toLowerCase() === teamName.toLowerCase() ||
+                        t.shortName?.toLowerCase() === teamName.toLowerCase()
+                    );
+                    if (team) return team.id;
+                }
+            } catch (error) {
+                continue; // Try next competition
+            }
+        }
+        return null;
+    } catch (error) {
+        console.warn('Error finding team ID:', error);
+        return null;
+    }
 }
 
 /**
- * Fetch comprehensive team analysis
+ * Fetch Head-to-Head data between two teams from REAL API
+ */
+async function fetchHeadToHead(team1, team2) {
+    try {
+        // Find team IDs
+        const team1Id = await findTeamId(team1);
+        const team2Id = await findTeamId(team2);
+        
+        if (!team1Id || !team2Id) {
+            console.warn('Could not find team IDs, using estimated data');
+            // Return estimated data if teams not found
+            return {
+                team1: team1,
+                team2: team2,
+                totalMatches: 0,
+                team1Wins: 0,
+                team2Wins: 0,
+                draws: 0,
+                team1Goals: 0,
+                team2Goals: 0,
+                recentMatches: [],
+                team1Form: ['?', '?', '?', '?', '?'],
+                team2Form: ['?', '?', '?', '?', '?'],
+                team1GoalsAvg: 0,
+                team2GoalsAvg: 0,
+                team1ConcededAvg: 0,
+                team2ConcededAvg: 0,
+                dataSource: 'estimated'
+            };
+        }
+        
+        // Fetch matches for both teams and find common matches
+        const [team1Matches, team2Matches] = await Promise.all([
+            fetchTeamRecentMatches(team1Id, 50), // Get more matches for H2H
+            fetchTeamRecentMatches(team2Id, 50)
+        ]);
+        
+        if (!team1Matches || !team2Matches) {
+            throw new Error('Could not fetch team matches');
+        }
+        
+        // Find matches where both teams played each other
+        const h2hMatches = [];
+        team1Matches.forEach(match => {
+            if ((match.homeTeam?.id === team1Id && match.awayTeam?.id === team2Id) ||
+                (match.homeTeam?.id === team2Id && match.awayTeam?.id === team1Id)) {
+                h2hMatches.push(match);
+            }
+        });
+        
+        // Calculate H2H statistics
+        let team1Wins = 0, team2Wins = 0, draws = 0;
+        let team1Goals = 0, team2Goals = 0;
+        const recentMatches = [];
+        
+        h2hMatches.slice(0, 10).forEach(match => {
+            const homeScore = match.score?.fullTime?.home ?? match.score?.home ?? 0;
+            const awayScore = match.score?.fullTime?.away ?? match.score?.away ?? 0;
+            const isTeam1Home = match.homeTeam?.id === team1Id;
+            
+            const team1Score = isTeam1Home ? homeScore : awayScore;
+            const team2Score = isTeam1Home ? awayScore : homeScore;
+            
+            team1Goals += team1Score;
+            team2Goals += team2Score;
+            
+            if (team1Score > team2Score) {
+                team1Wins++;
+                recentMatches.push({ date: match.utcDate, team1Score, team2Score, winner: team1 });
+            } else if (team2Score > team1Score) {
+                team2Wins++;
+                recentMatches.push({ date: match.utcDate, team1Score, team2Score, winner: team2 });
+            } else {
+                draws++;
+                recentMatches.push({ date: match.utcDate, team1Score, team2Score, winner: 'Draw' });
+            }
+        });
+        
+        // Get current form
+        const team1Form = calculateFormFromMatches(team1Matches.slice(0, 5), team1Id);
+        const team2Form = calculateFormFromMatches(team2Matches.slice(0, 5), team2Id);
+        
+        // Get team stats for averages
+        const team1Stats = await fetchTeamStatsById(team1Id);
+        const team2Stats = await fetchTeamStatsById(team2Id);
+        
+        return {
+            team1: team1,
+            team2: team2,
+            totalMatches: h2hMatches.length,
+            team1Wins: team1Wins,
+            team2Wins: team2Wins,
+            draws: draws,
+            team1Goals: team1Goals,
+            team2Goals: team2Goals,
+            recentMatches: recentMatches.slice(0, 3),
+            team1Form: team1Form,
+            team2Form: team2Form,
+            team1GoalsAvg: team1Stats?.goalsForAvg || 0,
+            team2GoalsAvg: team2Stats?.goalsForAvg || 0,
+            team1ConcededAvg: team1Stats?.goalsAgainstAvg || 0,
+            team2ConcededAvg: team2Stats?.goalsAgainstAvg || 0,
+            dataSource: 'real'
+        };
+    } catch (error) {
+        console.error('Error fetching H2H data:', error);
+        // Return minimal data on error
+        return {
+            team1: team1,
+            team2: team2,
+            totalMatches: 0,
+            team1Wins: 0,
+            team2Wins: 0,
+            draws: 0,
+            team1Goals: 0,
+            team2Goals: 0,
+            recentMatches: [],
+            team1Form: ['?', '?', '?', '?', '?'],
+            team2Form: ['?', '?', '?', '?', '?'],
+            team1GoalsAvg: 0,
+            team2GoalsAvg: 0,
+            team1ConcededAvg: 0,
+            team2ConcededAvg: 0,
+            dataSource: 'error'
+        };
+    }
+}
+
+/**
+ * Fetch team statistics by team ID
+ */
+async function fetchTeamStatsById(teamId) {
+    try {
+        // Get team's matches to calculate stats
+        const matches = await fetchTeamRecentMatches(teamId, 20);
+        if (!matches || matches.length === 0) return null;
+        
+        let goalsFor = 0, goalsAgainst = 0, played = 0;
+        
+        matches.forEach(match => {
+            const homeScore = match.score?.fullTime?.home ?? match.score?.home;
+            const awayScore = match.score?.fullTime?.away ?? match.score?.away;
+            
+            if (homeScore !== null && awayScore !== null && 
+                homeScore !== undefined && awayScore !== undefined) {
+                const isHome = match.homeTeam?.id === teamId;
+                goalsFor += isHome ? homeScore : awayScore;
+                goalsAgainst += isHome ? awayScore : homeScore;
+                played++;
+            }
+        });
+        
+        if (played === 0) return null;
+        
+        return {
+            goalsForAvg: goalsFor / played,
+            goalsAgainstAvg: goalsAgainst / played
+        };
+    } catch (error) {
+        console.warn('Error fetching team stats:', error);
+        return null;
+    }
+}
+
+/**
+ * Fetch comprehensive team analysis from REAL API
  */
 async function fetchTeamAnalysis(teamName) {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 800));
+    try {
+        const teamId = await findTeamId(teamName);
+        
+        if (!teamId) {
+            throw new Error('Team not found');
+        }
+        
+        // Fetch team details
+        const teamUrl = `${API_CONFIG.baseUrl}/teams/${teamId}`;
+        const teamResponse = await fetch(teamUrl, { headers: API_CONFIG.headers });
+        const teamData = await teamResponse.ok ? await teamResponse.json() : null;
+        
+        // Fetch recent matches for form and stats
+        const matches = await fetchTeamRecentMatches(teamId, 20);
+        if (!matches) throw new Error('Could not fetch matches');
+        
+        // Calculate form
+        const recentForm = calculateFormFromMatches(matches.slice(0, 5), teamId);
+        
+        // Calculate statistics from matches
+        let goalsFor = 0, goalsAgainst = 0, wins = 0, draws = 0, losses = 0;
+        let homeWins = 0, homeDraws = 0, homeLosses = 0, homeGoalsFor = 0, homeGoalsAgainst = 0;
+        let awayWins = 0, awayDraws = 0, awayLosses = 0, awayGoalsFor = 0, awayGoalsAgainst = 0;
+        let played = 0, cleanSheets = 0;
+        
+        matches.forEach(match => {
+            const homeScore = match.score?.fullTime?.home ?? match.score?.home;
+            const awayScore = match.score?.fullTime?.away ?? match.score?.away;
+            
+            if (homeScore === null || awayScore === null || 
+                homeScore === undefined || awayScore === undefined) return;
+            
+            const isHome = match.homeTeam?.id === teamId;
+            const teamScore = isHome ? homeScore : awayScore;
+            const opponentScore = isHome ? awayScore : homeScore;
+            
+            goalsFor += teamScore;
+            goalsAgainst += opponentScore;
+            played++;
+            
+            if (opponentScore === 0) cleanSheets++;
+            
+            if (teamScore > opponentScore) {
+                wins++;
+                if (isHome) { homeWins++; homeGoalsFor += teamScore; homeGoalsAgainst += opponentScore; }
+                else { awayWins++; awayGoalsFor += teamScore; awayGoalsAgainst += opponentScore; }
+            } else if (teamScore < opponentScore) {
+                losses++;
+                if (isHome) { homeLosses++; homeGoalsFor += teamScore; homeGoalsAgainst += opponentScore; }
+                else { awayLosses++; awayGoalsFor += teamScore; awayGoalsAgainst += opponentScore; }
+            } else {
+                draws++;
+                if (isHome) { homeDraws++; homeGoalsFor += teamScore; homeGoalsAgainst += opponentScore; }
+                else { awayDraws++; awayGoalsFor += teamScore; awayGoalsAgainst += opponentScore; }
+            }
+        });
+        
+        // Find league and position from standings
+        let league = 'Unknown League';
+        let position = 0;
+        let points = 0;
+        
+        const competitions = [2021, 2014, 2019, 2002, 2015];
+        for (const compId of competitions) {
+            try {
+                const standings = await fetchTeamStandings(compId);
+                if (standings) {
+                    const team = standings.find(t => t.team?.id === teamId);
+                    if (team) {
+                        position = team.position || 0;
+                        points = team.points || 0;
+                        // Get league name from competition
+                        const compUrl = `${API_CONFIG.baseUrl}/competitions/${compId}`;
+                        const compResponse = await fetch(compUrl, { headers: API_CONFIG.headers });
+                        if (compResponse.ok) {
+                            const compData = await compResponse.json();
+                            league = compData.name || league;
+                        }
+                        break;
+                    }
+                }
+            } catch (error) {
+                continue;
+            }
+        }
+        
+        // Get next match
+        const upcomingMatches = await fetch(`${API_CONFIG.baseUrl}/teams/${teamId}/matches?status=SCHEDULED&limit=1`, 
+            { headers: API_CONFIG.headers }).then(r => r.ok ? r.json() : null);
+        const nextMatch = upcomingMatches?.matches?.[0];
+        
+        // Generate analysis
+        const goalsPerGame = played > 0 ? goalsFor / played : 0;
+        const concededPerGame = played > 0 ? goalsAgainst / played : 0;
+        
+        const strengths = [];
+        const weaknesses = [];
+        
+        if (goalsPerGame > 1.8) strengths.push('Strong attacking play');
+        if (concededPerGame < 1.2) strengths.push('Solid defense');
+        if (homeWins > awayWins) strengths.push('Strong home form');
+        if (recentForm.filter(f => f === 'W').length >= 3) strengths.push('Excellent recent form');
+        
+        if (concededPerGame > 1.5) weaknesses.push('Defensive vulnerabilities');
+        if (awayLosses > awayWins) weaknesses.push('Poor away record');
+        if (recentForm.filter(f => f === 'L').length >= 3) weaknesses.push('Recent poor form');
+        
+        return {
+            teamName: teamName,
+            league: league,
+            position: position,
+            played: played,
+            wins: wins,
+            draws: draws,
+            losses: losses,
+            goalsFor: goalsFor,
+            goalsAgainst: goalsAgainst,
+            goalDifference: goalsFor - goalsAgainst,
+            points: points,
+            recentForm: recentForm,
+            homeRecord: { 
+                wins: homeWins, 
+                draws: homeDraws, 
+                losses: homeLosses, 
+                goalsFor: homeGoalsFor, 
+                goalsAgainst: homeGoalsAgainst 
+            },
+            awayRecord: { 
+                wins: awayWins, 
+                draws: awayDraws, 
+                losses: awayLosses, 
+                goalsFor: awayGoalsFor, 
+                goalsAgainst: awayGoalsAgainst 
+            },
+            goalsPerGame: goalsPerGame,
+            concededPerGame: concededPerGame,
+            cleanSheets: cleanSheets,
+            topScorer: 'N/A', // Not available in free tier
+            topScorerGoals: 0,
+            injuries: [], // Not available in free tier
+            suspensions: [],
+            nextMatch: nextMatch ? {
+                opponent: nextMatch.homeTeam?.id === teamId ? nextMatch.awayTeam?.name : nextMatch.homeTeam?.name,
+                date: new Date(nextMatch.utcDate).toISOString().split('T')[0],
+                venue: nextMatch.homeTeam?.id === teamId ? 'Home' : 'Away'
+            } : null,
+            strengths: strengths.length > 0 ? strengths : ['Balanced team'],
+            weaknesses: weaknesses.length > 0 ? weaknesses : ['No major weaknesses'],
+            prediction: generateTeamPrediction(wins, draws, losses, goalsPerGame, concededPerGame, position),
+            dataSource: 'real'
+        };
+    } catch (error) {
+        console.error('Error fetching team analysis:', error);
+        // Return minimal data
+        return {
+            teamName: teamName,
+            league: 'Unknown',
+            position: 0,
+            played: 0,
+            wins: 0,
+            draws: 0,
+            losses: 0,
+            goalsFor: 0,
+            goalsAgainst: 0,
+            goalDifference: 0,
+            points: 0,
+            recentForm: ['?', '?', '?', '?', '?'],
+            homeRecord: { wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 },
+            awayRecord: { wins: 0, draws: 0, losses: 0, goalsFor: 0, goalsAgainst: 0 },
+            goalsPerGame: 0,
+            concededPerGame: 0,
+            cleanSheets: 0,
+            topScorer: 'N/A',
+            topScorerGoals: 0,
+            injuries: [],
+            suspensions: [],
+            nextMatch: null,
+            strengths: [],
+            weaknesses: [],
+            prediction: 'Data unavailable',
+            dataSource: 'error'
+        };
+    }
+}
+
+/**
+ * Generate team prediction based on stats
+ */
+function generateTeamPrediction(wins, draws, losses, goalsPerGame, concededPerGame, position) {
+    const winRate = wins + draws + losses > 0 ? wins / (wins + draws + losses) : 0;
     
-    // In production, fetch from API
-    // For now, return mock data
-    const analysis = {
-        teamName: teamName,
-        league: 'Premier League',
-        position: 5,
-        played: 20,
-        wins: 12,
-        draws: 5,
-        losses: 3,
-        goalsFor: 45,
-        goalsAgainst: 28,
-        goalDifference: 17,
-        points: 41,
-        recentForm: ['W', 'W', 'L', 'W', 'D'],
-        homeRecord: { wins: 7, draws: 2, losses: 1, goalsFor: 25, goalsAgainst: 12 },
-        awayRecord: { wins: 5, draws: 3, losses: 2, goalsFor: 20, goalsAgainst: 16 },
-        goalsPerGame: 2.25,
-        concededPerGame: 1.4,
-        cleanSheets: 8,
-        topScorer: 'Player Name',
-        topScorerGoals: 12,
-        injuries: ['Player A', 'Player B'],
-        suspensions: [],
-        nextMatch: {
-            opponent: 'Opponent Team',
-            date: getCurrentDate(),
-            venue: 'Home'
-        },
-        strengths: ['Strong attack', 'Good home form', 'Set pieces'],
-        weaknesses: ['Away form', 'Defensive lapses'],
-        prediction: 'Strong team with good attacking options. Likely to finish in top 6.'
-    };
-    
-    return analysis;
+    if (winRate > 0.6 && goalsPerGame > 2) {
+        return 'Excellent attacking team with strong win rate. Top contender.';
+    } else if (winRate > 0.5 && concededPerGame < 1.2) {
+        return 'Solid team with good defensive record. Likely to finish in top half.';
+    } else if (winRate < 0.3) {
+        return 'Struggling team. Needs improvement to avoid relegation.';
+    } else {
+        return 'Average team with potential. Mid-table finish likely.';
+    }
 }
 
 // Export functions

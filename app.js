@@ -575,6 +575,11 @@ function displayH2HResult(h2hData) {
             <div class="h2h-header">
                 <h2 style="font-size: 2em; text-decoration: underline; margin-bottom: 10px;">${h2hData.team1} vs ${h2hData.team2}</h2>
                 <p style="font-size: 1.2em;">Head-to-Head Analysis</p>
+                ${h2hData.dataSource ? `
+                <div style="font-size: 0.9em; margin-top: 10px; padding: 5px 10px; background: ${h2hData.dataSource === 'real' ? '#4CAF50' : '#FF9800'}; color: white; border-radius: 5px; display: inline-block;">
+                    ${h2hData.dataSource === 'real' ? '✅ Real Data from API' : h2hData.dataSource === 'estimated' ? '⚠️ Estimated Data' : '❌ Error Loading Data'}
+                </div>
+                ` : ''}
             </div>
             
             <div class="h2h-stats">
@@ -749,6 +754,11 @@ function displayTeamAnalysis(analysis) {
             <div class="h2h-header">
                 <h2 style="font-size: 2.5em; text-decoration: underline; margin-bottom: 10px;">${analysis.teamName}</h2>
                 <p style="font-size: 1.3em;">${analysis.league} - Position: ${analysis.position}</p>
+                ${analysis.dataSource ? `
+                <div style="font-size: 0.9em; margin-top: 10px; padding: 5px 10px; background: ${analysis.dataSource === 'real' ? '#4CAF50' : '#FF9800'}; color: white; border-radius: 5px; display: inline-block;">
+                    ${analysis.dataSource === 'real' ? '✅ Real Data from API' : '❌ Error Loading Data'}
+                </div>
+                ` : ''}
             </div>
             
             <div class="stats-grid">
