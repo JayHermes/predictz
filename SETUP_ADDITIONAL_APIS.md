@@ -4,12 +4,16 @@
 
 ### Step 1: Get API-Football Key (FREE - 100 requests/day)
 
+**IMPORTANT**: When you subscribe to API-Football, you get **ALL endpoints** - you don't need to choose individual ones!
+
 1. Go to https://rapidapi.com/
 2. Sign up (free account)
-3. Search for "API-Football"
-4. Click "Subscribe" → Choose "Basic" (FREE)
-5. Copy your API key from the dashboard
-6. Update `api.js`:
+3. Search for "API-Football" or "api-football-v1"
+4. Click on "API-Football" by api-sports
+5. Click "Subscribe" → Choose **"Basic"** plan (FREE - 100 requests/day)
+6. **Note**: Some endpoints like Injuries/Lineups might show as "Pro" - but Basic plan usually includes them for limited use
+7. Copy your API key from the dashboard (X-RapidAPI-Key)
+8. Update `api.js`:
    ```javascript
    apiFootball: {
        enabled: true,
