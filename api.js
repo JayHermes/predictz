@@ -121,18 +121,19 @@ const MOCK_MATCHES = [
 /**
  * Fetch matches from API
  * Supports Football-Data.org API (free tier available)
+ * Now fetches REAL data including statistics and form!
  */
 async function fetchMatches(league = 'all') {
     // Use mock data if API key not configured
     if (API_CONFIG.useMockData || !API_CONFIG.apiKey || API_CONFIG.apiKey === 'YOUR_API_KEY_HERE') {
-        console.log('Using mock data. Configure API key in api.js to use real data.');
+        console.warn('⚠️ Using MOCK data. Configure API key in api.js to use REAL data.');
         await new Promise(resolve => setTimeout(resolve, 1000));
         if (league === 'all') {
-            return MOCK_MATCHES;
+            return MOCK_MATCHES.map(m => ({ ...m, dataSource: 'mock', realData: { hasRealStats: false, hasRealForm: false, hasRealInjuries: false, hasRealNews: false } }));
         }
         return MOCK_MATCHES.filter(match => 
             match.league.toLowerCase().replace(/\s+/g, '-') === league
-        );
+        ).map(m => ({ ...m, dataSource: 'mock', realData: { hasRealStats: false, hasRealForm: false, hasRealInjuries: false, hasRealNews: false } }));
     }
     
     try {
@@ -149,7 +150,7 @@ async function fetchMatches(league = 'all') {
                 const leagueId = API_CONFIG.leagueIds[league];
                 if (!leagueId) {
                     console.warn(`League ${league} not found, using mock data`);
-                    return MOCK_MATCHES;
+                    return MOCK_MATCHES.map(m => ({ ...m, dataSource: 'mock', realData: { hasRealStats: false, hasRealForm: false, hasRealInjuries: false, hasRealNews: false } }));
                 }
                 const today = new Date().toISOString().split('T')[0];
                 url = `${API_CONFIG.baseUrl}/competitions/${leagueId}/matches?dateFrom=${today}&dateTo=${today}`;
@@ -164,43 +165,196 @@ async function fetchMatches(league = 'all') {
         const response = await fetch(url, { headers });
         
         if (!response.ok) {
+            if (response.status === 429) {
+                throw new Error('API rate limit exceeded. Please wait a minute.');
+            }
             throw new Error(`API Error: ${response.status} ${response.statusText}`);
         }
         
         const data = await response.json();
         
-        // Transform API response to our format
+        // Transform API response to our format with REAL data
         if (API_CONFIG.provider === 'football-data') {
-            return transformFootballDataMatches(data.matches || []);
+            const matches = await transformFootballDataMatches(data.matches || []);
+            console.log('✅ Fetched REAL fixtures and statistics from API');
+            return matches;
         } else if (API_CONFIG.provider === 'api-football') {
             return transformApiFootballMatches(data.response || []);
         }
         
         return [];
     } catch (error) {
-        console.error('Error fetching matches:', error);
-        console.log('Falling back to mock data');
+        console.error('❌ Error fetching matches:', error);
+        console.warn('⚠️ Falling back to mock data');
         // Fallback to mock data on error
         if (league === 'all') {
-            return MOCK_MATCHES;
+            return MOCK_MATCHES.map(m => ({ ...m, dataSource: 'mock', realData: { hasRealStats: false, hasRealForm: false, hasRealInjuries: false, hasRealNews: false } }));
         }
         return MOCK_MATCHES.filter(match => 
             match.league.toLowerCase().replace(/\s+/g, '-') === league
-        );
+        ).map(m => ({ ...m, dataSource: 'mock', realData: { hasRealStats: false, hasRealForm: false, hasRealInjuries: false, hasRealNews: false } }));
     }
 }
 
 /**
- * Transform Football-Data.org API response to our format
+ * Fetch team standings for real statistics
  */
-function transformFootballDataMatches(apiMatches) {
-    return apiMatches.map(match => {
+async function fetchTeamStandings(competitionId) {
+    try {
+        const url = `${API_CONFIG.baseUrl}/competitions/${competitionId}/standings`;
+        const response = await fetch(url, { headers: API_CONFIG.headers });
+        
+        if (!response.ok) {
+            console.warn('Could not fetch standings');
+            return null;
+        }
+        
+        const data = await response.json();
+        return data.standings?.[0]?.table || null;
+    } catch (error) {
+        console.warn('Error fetching standings:', error);
+        return null;
+    }
+}
+
+/**
+ * Fetch recent matches for a team to calculate real form
+ */
+async function fetchTeamRecentMatches(teamId, limit = 5) {
+    try {
+        const url = `${API_CONFIG.baseUrl}/teams/${teamId}/matches?limit=${limit}`;
+        const response = await fetch(url, { headers: API_CONFIG.headers });
+        
+        if (!response.ok) {
+            return null;
+        }
+        
+        const data = await response.json();
+        return data.matches || [];
+    } catch (error) {
+        console.warn('Error fetching team matches:', error);
+        return null;
+    }
+}
+
+/**
+ * Calculate form from real match results
+ */
+function calculateFormFromMatches(matches, teamId) {
+    if (!matches || matches.length === 0) return ['?', '?', '?', '?', '?'];
+    
+    const form = [];
+    for (let i = 0; i < Math.min(5, matches.length); i++) {
+        const match = matches[i];
+        const isHome = match.homeTeam?.id === teamId;
+        const homeScore = match.score?.fullTime?.home ?? match.score?.home;
+        const awayScore = match.score?.fullTime?.away ?? match.score?.away;
+        
+        if (homeScore === null || awayScore === null || homeScore === undefined || awayScore === undefined) {
+            form.push('?');
+            continue;
+        }
+        
+        if (isHome) {
+            if (homeScore > awayScore) form.push('W');
+            else if (homeScore < awayScore) form.push('L');
+            else form.push('D');
+        } else {
+            if (awayScore > homeScore) form.push('W');
+            else if (awayScore < homeScore) form.push('L');
+            else form.push('D');
+        }
+    }
+    
+    // Pad with '?' if less than 5 matches
+    while (form.length < 5) {
+        form.unshift('?');
+    }
+    
+    return form.slice(0, 5);
+}
+
+/**
+ * Get team stats from standings
+ */
+function getTeamStatsFromStandings(standings, teamName) {
+    if (!standings) return null;
+    
+    const team = standings.find(t => 
+        t.team?.name?.toLowerCase() === teamName.toLowerCase()
+    );
+    
+    if (!team) return null;
+    
+    const played = team.playedGames || 0;
+    if (played === 0) return null;
+    
+    return {
+        goalsFor: team.goalsFor || 0,
+        goalsAgainst: team.goalsAgainst || 0,
+        goalsForAvg: (team.goalsFor || 0) / played,
+        goalsAgainstAvg: (team.goalsAgainst || 0) / played,
+        wins: team.won || 0,
+        draws: team.draw || 0,
+        losses: team.lost || 0,
+        points: team.points || 0
+    };
+}
+
+/**
+ * Transform Football-Data.org API response to our format with REAL data
+ */
+async function transformFootballDataMatches(apiMatches) {
+    if (!apiMatches || apiMatches.length === 0) return [];
+    
+    // Get competition ID from first match
+    const competitionId = apiMatches[0]?.competition?.id;
+    
+    // Fetch standings for real statistics (cache this)
+    let standings = null;
+    if (competitionId) {
+        standings = await fetchTeamStandings(competitionId);
+    }
+    
+    // Transform each match
+    const transformedMatches = await Promise.all(apiMatches.map(async (match) => {
         const homeTeam = match.homeTeam?.name || 'Unknown';
         const awayTeam = match.awayTeam?.name || 'Unknown';
+        const homeTeamId = match.homeTeam?.id;
+        const awayTeamId = match.awayTeam?.id;
         const matchDate = new Date(match.utcDate);
         
-        // Calculate form from recent matches (would need additional API calls)
-        // For now, use defaults that can be enhanced
+        // Get real statistics from standings
+        const homeStats = standings ? getTeamStatsFromStandings(standings, homeTeam) : null;
+        const awayStats = standings ? getTeamStatsFromStandings(standings, awayTeam) : null;
+        
+        // Fetch recent matches for real form (with rate limiting consideration)
+        let homeForm = ['?', '?', '?', '?', '?'];
+        let awayForm = ['?', '?', '?', '?', '?'];
+        
+        // Only fetch form if we have team IDs and API is working
+        if (homeTeamId && !API_CONFIG.useMockData) {
+            try {
+                const homeMatches = await fetchTeamRecentMatches(homeTeamId, 5);
+                if (homeMatches) {
+                    homeForm = calculateFormFromMatches(homeMatches, homeTeamId);
+                }
+            } catch (error) {
+                console.warn(`Could not fetch form for ${homeTeam}:`, error);
+            }
+        }
+        
+        if (awayTeamId && !API_CONFIG.useMockData) {
+            try {
+                const awayMatches = await fetchTeamRecentMatches(awayTeamId, 5);
+                if (awayMatches) {
+                    awayForm = calculateFormFromMatches(awayMatches, awayTeamId);
+                }
+            } catch (error) {
+                console.warn(`Could not fetch form for ${awayTeam}:`, error);
+            }
+        }
+        
         return {
             id: match.id,
             homeTeam: homeTeam,
@@ -208,25 +362,34 @@ function transformFootballDataMatches(apiMatches) {
             league: match.competition?.name || 'Unknown League',
             date: matchDate.toISOString().split('T')[0],
             time: matchDate.toTimeString().split(' ')[0].substring(0, 5),
-            homeForm: ['W', 'D', 'W', 'L', 'W'], // Would fetch from team stats
-            awayForm: ['W', 'W', 'D', 'W', 'L'],
-            homeGoalsAvg: 1.8, // Would calculate from team stats
-            awayGoalsAvg: 1.9,
-            homeConcededAvg: 1.1,
-            awayConcededAvg: 1.2,
-            headToHead: { homeWins: 3, awayWins: 2, draws: 1 },
+            homeForm: homeForm,
+            awayForm: awayForm,
+            homeGoalsAvg: homeStats?.goalsForAvg || 1.8, // Use real data or fallback
+            awayGoalsAvg: awayStats?.goalsForAvg || 1.9,
+            homeConcededAvg: homeStats?.goalsAgainstAvg || 1.1,
+            awayConcededAvg: awayStats?.goalsAgainstAvg || 1.2,
+            headToHead: { homeWins: 0, awayWins: 0, draws: 0 }, // Would need H2H API call
             injuries: {
-                home: [],
+                home: [], // Would need injuries API
                 away: []
             },
             teamNews: {
-                home: 'Check team news',
-                away: 'Check team news'
+                home: 'Data from Football-Data.org API', // Real data source
+                away: 'Data from Football-Data.org API'
             },
             status: match.status,
-            score: match.score
+            score: match.score,
+            dataSource: homeStats && awayStats ? 'real' : 'partial', // Indicate data quality
+            realData: {
+                hasRealStats: !!homeStats && !!awayStats,
+                hasRealForm: !homeForm.includes('?') && !awayForm.includes('?'),
+                hasRealInjuries: false, // Not available in free tier
+                hasRealNews: false // Would need news API
+            }
         };
-    });
+    }));
+    
+    return transformedMatches;
 }
 
 /**

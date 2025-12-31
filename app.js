@@ -164,6 +164,11 @@ function createMatchCard(match) {
             <div class="match-info">
                 <div>${match.league}</div>
                 <div>${match.date} ${match.time}</div>
+                ${match.dataSource ? `
+                <div style="font-size: 0.75em; margin-top: 5px; padding: 3px 8px; background: ${match.dataSource === 'real' ? '#4CAF50' : match.dataSource === 'partial' ? '#FF9800' : '#f44336'}; color: white; border-radius: 5px; display: inline-block;">
+                    ${match.dataSource === 'real' ? '✅ Real Data' : match.dataSource === 'partial' ? '⚠️ Partial Data' : '❌ Mock Data'}
+                </div>
+                ` : ''}
             </div>
         </div>
         
