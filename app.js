@@ -134,6 +134,11 @@ function displayMatches(matches) {
         const matchCard = createMatchCard(match);
         container.appendChild(matchCard);
     });
+    
+    // Setup prediction reasons after cards are created
+    setTimeout(() => {
+        setupPredictionReasons();
+    }, 100);
 }
 
 /**
@@ -148,11 +153,6 @@ function createMatchCard(match) {
     
     // Get top 3 predictions
     const topPredictions = predictions.slice(0, 3);
-    
-    // Add event listener after card is created
-    setTimeout(() => {
-        setupPredictionReasons();
-    }, 100);
     
     card.innerHTML = `
         <div class="match-header">
