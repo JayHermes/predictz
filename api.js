@@ -971,9 +971,9 @@ async function findApiFootballFixtureId(homeTeamName, awayTeamName, matchDate) {
     }
     
     try {
-        // Search for fixtures on the match date
-        const url = `${API_CONFIG.apiFootball.baseUrl}/fixtures?date=${matchDate}`;
-        const response = await fetch(url, { headers: API_CONFIG.apiFootball.headers });
+        // Use Vercel proxy to avoid CORS
+        const url = `/api/api-football?endpoint=fixtures&date=${matchDate}`;
+        const response = await fetch(url);
         
         if (!response.ok) {
             return null;
