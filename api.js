@@ -23,11 +23,16 @@ const API_CONFIG = {
     },
     
     // Option 3: NewsAPI - For team news
-    // Get free API key: https://newsapi.org/
+    // Using RapidAPI News API (same key as API-Football)
     newsAPI: {
-        enabled: false, // Set to true after getting API key
-        baseUrl: 'https://newsapi.org/v2',
-        apiKey: 'YOUR_NEWSAPI_KEY_HERE' // Get from https://newsapi.org/
+        enabled: true, // ✅ Enabled with your RapidAPI key
+        provider: 'rapidapi', // Using RapidAPI News API
+        baseUrl: 'https://news-api14.p.rapidapi.com', // RapidAPI News API base URL
+        apiKey: '145e42c32emshc539086cad10ed1p18ddd0jsnd1adbff6ecd0', // Your RapidAPI key
+        headers: {
+            'X-RapidAPI-Key': '145e42c32emshc539086cad10ed1p18ddd0jsnd1adbff6ecd0',
+            'X-RapidAPI-Host': 'news-api14.p.rapidapi.com'
+        }
     },
     
     // League IDs for Football-Data.org
