@@ -159,17 +159,27 @@ async function fetchMatches(league = 'all') {
         if (API_CONFIG.provider === 'football-data') {
             // Football-Data.org API
             if (league === 'all') {
-                // Get matches for today across all leagues
-                const today = new Date().toISOString().split('T')[0];
-                url = `${API_CONFIG.baseUrl}/matches?dateFrom=${today}&dateTo=${today}`;
+                // Get matches for today and next 7 days (in case no matches today)
+                const today = new Date();
+                const nextWeek = new Date(today);
+                nextWeek.setDate(nextWeek.getDate() + 7);
+                const todayStr = today.toISOString().split('T')[0];
+                const nextWeekStr = nextWeek.toISOString().split('T')[0];
+                url = `${API_CONFIG.baseUrl}/matches?dateFrom=${todayStr}&dateTo=${nextWeekStr}`;
+                console.log(`🔍 Fetching matches from ${todayStr} to ${nextWeekStr}`);
             } else {
                 const leagueId = API_CONFIG.leagueIds[league];
                 if (!leagueId) {
                     console.warn(`League ${league} not found, using mock data`);
                     return MOCK_MATCHES.map(m => ({ ...m, dataSource: 'mock', realData: { hasRealStats: false, hasRealForm: false, hasRealInjuries: false, hasRealNews: false } }));
                 }
-                const today = new Date().toISOString().split('T')[0];
-                url = `${API_CONFIG.baseUrl}/competitions/${leagueId}/matches?dateFrom=${today}&dateTo=${today}`;
+                const today = new Date();
+                const nextWeek = new Date(today);
+                nextWeek.setDate(nextWeek.getDate() + 7);
+                const todayStr = today.toISOString().split('T')[0];
+                const nextWeekStr = nextWeek.toISOString().split('T')[0];
+                url = `${API_CONFIG.baseUrl}/competitions/${leagueId}/matches?dateFrom=${todayStr}&dateTo=${nextWeekStr}`;
+                console.log(`🔍 Fetching ${league} matches from ${todayStr} to ${nextWeekStr}`);
             }
         } else if (API_CONFIG.provider === 'api-football') {
             // API-Football via RapidAPI
@@ -178,37 +188,68 @@ async function fetchMatches(league = 'all') {
             url = `${API_CONFIG.baseUrl}/fixtures?date=${today}&league=${leagueId}`;
         }
         
+        console.log(`🌐 Fetching from: ${url}`);
         const response = await fetch(url, { headers });
         
+        console.log(`📡 Response status: ${response.status} ${response.statusText}`);
+        
         if (!response.ok) {
+            const errorText = await response.text();
+            console.error('❌ API Error Response:', errorText);
             if (response.status === 429) {
                 throw new Error('API rate limit exceeded. Please wait a minute.');
+            }
+            if (response.status === 401 || response.status === 403) {
+                throw new Error('API authentication failed. Check your API key.');
             }
             throw new Error(`API Error: ${response.status} ${response.statusText}`);
         }
         
         const data = await response.json();
+        console.log('📦 API Response:', data);
+        
+        // Check if we have matches
+        const matchesData = data.matches || data.response || [];
+        console.log(`📊 Found ${matchesData.length} matches from API`);
+        
+        if (matchesData.length === 0) {
+            console.warn('⚠️ No matches found for today. This is normal if there are no scheduled matches.');
+            // Return empty array instead of mock data so user knows there are no matches
+            return [];
+        }
         
         // Transform API response to our format with REAL data
         if (API_CONFIG.provider === 'football-data') {
-            const matches = await transformFootballDataMatches(data.matches || []);
-            console.log('✅ Fetched REAL fixtures and statistics from API');
+            const matches = await transformFootballDataMatches(matchesData);
+            console.log(`✅ Successfully transformed ${matches.length} matches with REAL data`);
+            if (matches.length === 0) {
+                console.warn('⚠️ No matches found after transformation. This might mean:');
+                console.warn('   1. No matches scheduled for the selected period');
+                console.warn('   2. API returned matches but transformation failed');
+                console.warn('   3. Check browser console for transformation errors');
+            }
             return matches;
         } else if (API_CONFIG.provider === 'api-football') {
-            return transformApiFootballMatches(data.response || []);
+            const matches = transformApiFootballMatches(matchesData);
+            console.log(`✅ Successfully transformed ${matches.length} matches`);
+            return matches;
         }
         
         return [];
     } catch (error) {
         console.error('❌ Error fetching matches:', error);
-        console.warn('⚠️ Falling back to mock data');
-        // Fallback to mock data on error
-        if (league === 'all') {
-            return MOCK_MATCHES.map(m => ({ ...m, dataSource: 'mock', realData: { hasRealStats: false, hasRealForm: false, hasRealInjuries: false, hasRealNews: false } }));
+        console.error('Error details:', error.message);
+        if (error.stack) {
+            console.error('Stack trace:', error.stack);
         }
-        return MOCK_MATCHES.filter(match => 
-            match.league.toLowerCase().replace(/\s+/g, '-') === league
-        ).map(m => ({ ...m, dataSource: 'mock', realData: { hasRealStats: false, hasRealForm: false, hasRealInjuries: false, hasRealNews: false } }));
+        
+        // Check for CORS errors
+        if (error.message.includes('CORS') || error.message.includes('Failed to fetch')) {
+            throw new Error('CORS Error: API blocked by browser. Try deploying to a server or using a CORS proxy.');
+        }
+        
+        // Don't fall back to mock data - show the actual error
+        throw error;
     }
 }
 

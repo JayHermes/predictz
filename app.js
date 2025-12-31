@@ -73,24 +73,29 @@ async function handleFetchMatches() {
     
     try {
         const league = leagueSelect.value;
+        console.log(`🚀 Fetching matches for league: ${league}`);
         const matches = await fetchMatches(league);
         currentMatches = matches;
         
+        console.log(`📋 Received ${matches.length} matches`);
+        
         if (matches.length === 0) {
-            showEmptyState();
+            console.log('ℹ️ No matches found - showing empty state');
+            showEmptyState('No matches scheduled for the selected period. Try selecting a specific league or check back later!');
         } else {
+            console.log('✅ Displaying matches');
             displayMatches(matches);
         }
     } catch (error) {
-        console.error('Error fetching matches:', error);
+        console.error('❌ Error fetching matches:', error);
         const errorMessages = [
-            'Oops! The API is having a bad day! 😅 Try again in a bit!',
-            'Error! The football data got lost in translation! 🌍',
-            'Something went wrong! Did you check if the API is awake? 😴',
-            'Error loading matches! The server might be taking a coffee break! ☕',
-            'Oops! Something broke! But don\'t worry, it\'s not your fault! 🤷‍♂️',
-            'Error! The football gods are not responding! 🙏',
-            'Something went wrong! Maybe the API is playing hide and seek? 🎭'
+            `Oops! The API is having a bad day! 😅 Error: ${error.message}`,
+            `Error! The football data got lost in translation! 🌍 ${error.message}`,
+            `Something went wrong! Did you check if the API is awake? 😴 ${error.message}`,
+            `Error loading matches! The server might be taking a coffee break! ☕ ${error.message}`,
+            `Oops! Something broke! But don't worry, it's not your fault! 🤷‍♂️ ${error.message}`,
+            `Error! The football gods are not responding! 🙏 ${error.message}`,
+            `Something went wrong! Maybe the API is playing hide and seek? 🎭 ${error.message}`
         ];
         const errorMsg = errorMessages[Math.floor(Math.random() * errorMessages.length)];
         
@@ -98,7 +103,12 @@ async function handleFetchMatches() {
             <div class="empty-state">
                 <h2>Error Loading Matches</h2>
                 <p>${errorMsg}</p>
-                <p style="margin-top: 15px; font-size: 0.9em; opacity: 0.7;">Technical details: ${error.message || 'Unknown error'}</p>
+                <p style="margin-top: 15px; font-size: 0.9em; opacity: 0.7;">
+                    <strong>Technical details:</strong> ${error.message || 'Unknown error'}<br>
+                    <strong>Check:</strong> Browser console (F12) for more details<br>
+                    <strong>Possible issues:</strong> API key invalid, rate limit exceeded, or no matches today
+                </p>
+                <button class="btn btn-primary" onclick="location.reload()" style="margin-top: 20px;">Retry</button>
             </div>
         `;
     } finally {
@@ -304,21 +314,25 @@ function getFormBadgeClass(percentage) {
 /**
  * Show empty state
  */
-function showEmptyState() {
+function showEmptyState(customMessage = null) {
     const container = document.getElementById('matchesContainer');
     const messages = [
         'No matches found! 🤷‍♂️ Maybe the teams are still warming up?',
         'Nothing here! The pitch is empty... ⚽',
         'No matches today! Time for a coffee break! ☕',
         'Zilch! Nada! Nothing! The football gods are sleeping! 😴',
-        'No matches found! Did you check if it\'s a match day? 📅'
+        'No matches found! Did you check if it\'s a match day? 📅',
+        'No matches scheduled! Try selecting a different league or check back later! 📅'
     ];
-    const message = messages[Math.floor(Math.random() * messages.length)];
+    const message = customMessage || messages[Math.floor(Math.random() * messages.length)];
     
     container.innerHTML = `
         <div class="empty-state">
             <h2>No Matches Found</h2>
             <p>${message}</p>
+            <p style="margin-top: 15px; font-size: 0.9em; opacity: 0.7;">
+                <strong>Tip:</strong> Football-Data.org API shows real fixtures. If no matches appear, there might not be any scheduled matches for today in the selected league(s).
+            </p>
         </div>
     `;
 }
@@ -552,10 +566,22 @@ async function handleH2HComparison() {
     hideError();
     
     try {
+        console.log(`🔍 Fetching H2H data for ${team1} vs ${team2}`);
         const h2hData = await fetchHeadToHead(team1, team2);
+        console.log('📊 H2H Data received:', h2hData);
         displayH2HResult(h2hData);
     } catch (error) {
-        showError(`Oops! Couldn't fetch H2H data! ${error.message}`);
+        console.error('❌ H2H Error:', error);
+        container.innerHTML = `
+            <div class="empty-state">
+                <h2>Error Loading H2H Data</h2>
+                <p>Oops! Couldn't fetch head-to-head data! 😅</p>
+                <p style="margin-top: 15px; font-size: 0.9em; opacity: 0.7;">
+                    <strong>Error:</strong> ${error.message || 'Unknown error'}<br>
+                    <strong>Check:</strong> Browser console (F12) for details
+                </p>
+            </div>
+        `;
     } finally {
         loading.classList.add('hidden');
     }
@@ -566,9 +592,42 @@ async function handleH2HComparison() {
  */
 function displayH2HResult(h2hData) {
     const container = document.getElementById('matchesContainer');
-    const team1WinRate = ((h2hData.team1Wins / h2hData.totalMatches) * 100).toFixed(1);
-    const team2WinRate = ((h2hData.team2Wins / h2hData.totalMatches) * 100).toFixed(1);
-    const drawRate = ((h2hData.draws / h2hData.totalMatches) * 100).toFixed(1);
+    
+    // Handle division by zero
+    const totalMatches = h2hData.totalMatches || 1;
+    const team1WinRate = totalMatches > 0 ? ((h2hData.team1Wins / totalMatches) * 100).toFixed(1) : '0.0';
+    const team2WinRate = totalMatches > 0 ? ((h2hData.team2Wins / totalMatches) * 100).toFixed(1) : '0.0';
+    const drawRate = totalMatches > 0 ? ((h2hData.draws / totalMatches) * 100).toFixed(1) : '0.0';
+    
+    // Show message if no H2H data
+    if (h2hData.totalMatches === 0) {
+        container.innerHTML = `
+            <div class="h2h-result">
+                <div class="h2h-header">
+                    <h2 style="font-size: 2em; text-decoration: underline; margin-bottom: 10px;">${h2hData.team1} vs ${h2hData.team2}</h2>
+                    <p style="font-size: 1.2em;">Head-to-Head Analysis</p>
+                    <div style="font-size: 0.9em; margin-top: 10px; padding: 5px 10px; background: #FF9800; color: white; border-radius: 5px; display: inline-block;">
+                        ⚠️ No Historical Data Found
+                    </div>
+                </div>
+                <div class="analysis-section">
+                    <p style="text-align: center; padding: 20px; font-size: 1.1em;">
+                        No head-to-head matches found between these teams in recent history.<br>
+                        They may not have played each other recently, or the data is not available.
+                    </p>
+                    <div class="analysis-item">
+                        <span class="analysis-label">${h2hData.team1} Form:</span>
+                        <span class="analysis-value">${h2hData.team1Form.join(' ')}</span>
+                    </div>
+                    <div class="analysis-item">
+                        <span class="analysis-label">${h2hData.team2} Form:</span>
+                        <span class="analysis-value">${h2hData.team2Form.join(' ')}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+        return;
+    }
     
     container.innerHTML = `
         <div class="h2h-result">
@@ -733,10 +792,23 @@ async function handleTeamAnalysis() {
     hideError();
     
     try {
+        console.log(`🔍 Fetching team analysis for ${teamName}`);
         const analysis = await fetchTeamAnalysis(teamName);
+        console.log('📊 Team Analysis received:', analysis);
         displayTeamAnalysis(analysis);
     } catch (error) {
-        showError(`Oops! Couldn't fetch team analysis! ${error.message}`);
+        console.error('❌ Team Analysis Error:', error);
+        container.innerHTML = `
+            <div class="empty-state">
+                <h2>Error Loading Team Analysis</h2>
+                <p>Oops! Couldn't fetch team analysis! 😅</p>
+                <p style="margin-top: 15px; font-size: 0.9em; opacity: 0.7;">
+                    <strong>Error:</strong> ${error.message || 'Unknown error'}<br>
+                    <strong>Check:</strong> Browser console (F12) for details<br>
+                    <strong>Tip:</strong> Make sure team name is spelled correctly
+                </p>
+            </div>
+        `;
     } finally {
         loading.classList.add('hidden');
     }
@@ -747,7 +819,35 @@ async function handleTeamAnalysis() {
  */
 function displayTeamAnalysis(analysis) {
     const container = document.getElementById('matchesContainer');
-    const winRate = ((analysis.wins / analysis.played) * 100).toFixed(1);
+    
+    // Handle division by zero
+    const played = analysis.played || 1;
+    const winRate = played > 0 ? ((analysis.wins / played) * 100).toFixed(1) : '0.0';
+    
+    // Check if we have real data
+    if (analysis.played === 0 && analysis.dataSource !== 'real') {
+        container.innerHTML = `
+            <div class="team-analysis-result">
+                <div class="h2h-header">
+                    <h2 style="font-size: 2.5em; text-decoration: underline; margin-bottom: 10px;">${analysis.teamName}</h2>
+                    <p style="font-size: 1.3em;">Team Analysis</p>
+                    <div style="font-size: 0.9em; margin-top: 10px; padding: 5px 10px; background: #f44336; color: white; border-radius: 5px; display: inline-block;">
+                        ❌ Could Not Load Team Data
+                    </div>
+                </div>
+                <div class="analysis-section">
+                    <p style="text-align: center; padding: 20px; font-size: 1.1em;">
+                        Could not fetch team analysis. Possible reasons:<br>
+                        • Team name not found in database<br>
+                        • API error or rate limit<br>
+                        • Team not in supported leagues<br><br>
+                        <strong>Try:</strong> Use exact team name (e.g., "Manchester United" not "Man Utd")
+                    </p>
+                </div>
+            </div>
+        `;
+        return;
+    }
     
     container.innerHTML = `
         <div class="team-analysis-result">
