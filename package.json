@@ -1,0 +1,19 @@
+{
+  "name": "predictz",
+  "version": "1.0.0",
+  "description": "Football match prediction website using livescore API",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx http-server -p 3000",
+    "dev": "npx http-server -p 3000"
+  },
+  "keywords": [
+    "football",
+    "predictions",
+    "livescore",
+    "soccer"
+  ],
+  "author": "",
+  "license": "MIT"
+}
+

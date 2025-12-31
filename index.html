@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Predictz - Football Match Predictions</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>⚽ Predictz</h1>
+            <p class="subtitle">AI-Powered Football Match Predictions</p>
+        </header>
+
+        <div class="controls">
+            <button id="fetchMatches" class="btn btn-primary">Fetch Today's Matches</button>
+            <select id="leagueSelect" class="select">
+                <option value="all">All Leagues</option>
+                <option value="premier-league">Premier League</option>
+                <option value="la-liga">La Liga</option>
+                <option value="serie-a">Serie A</option>
+                <option value="bundesliga">Bundesliga</option>
+                <option value="ligue-1">Ligue 1</option>
+            </select>
+        </div>
+
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Analyzing matches...</p>
+        </div>
+
+        <div id="matchesContainer" class="matches-container"></div>
+    </div>
+
+    <script src="api.js"></script>
+    <script src="predictions.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
+
