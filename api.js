@@ -10,14 +10,25 @@ const API_CONFIG = {
         'X-Auth-Token': '7a37e1457f714a63b39d16c332a5eef6' // Football-Data.org uses this header
     },
     
-    // Option 2: API-Football (via RapidAPI)
-    // provider: 'api-football',
-    // baseUrl: 'https://api-football-v1.p.rapidapi.com/v3',
-    // apiKey: 'YOUR_RAPIDAPI_KEY',
-    // headers: {
-    //     'X-RapidAPI-Key': 'YOUR_RAPIDAPI_KEY',
-    //     'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
-    // },
+    // Option 2: API-Football (via RapidAPI) - For injuries, lineups, player stats
+    // Get free API key: https://rapidapi.com/api-sports/api/api-football
+    apiFootball: {
+        enabled: false, // Set to true after getting API key
+        baseUrl: 'https://api-football-v1.p.rapidapi.com/v3',
+        apiKey: 'YOUR_RAPIDAPI_KEY_HERE', // Get from RapidAPI dashboard
+        headers: {
+            'X-RapidAPI-Key': 'YOUR_RAPIDAPI_KEY_HERE',
+            'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
+        }
+    },
+    
+    // Option 3: NewsAPI - For team news
+    // Get free API key: https://newsapi.org/
+    newsAPI: {
+        enabled: false, // Set to true after getting API key
+        baseUrl: 'https://newsapi.org/v2',
+        apiKey: 'YOUR_NEWSAPI_KEY_HERE' // Get from https://newsapi.org/
+    },
     
     // League IDs for Football-Data.org
     leagueIds: {
@@ -370,13 +381,15 @@ async function transformFootballDataMatches(apiMatches) {
             awayConcededAvg: awayStats?.goalsAgainstAvg || 1.2,
             headToHead: { homeWins: 0, awayWins: 0, draws: 0 }, // Would need H2H API call
             injuries: {
-                home: [], // Would need injuries API
+                home: [], // Will be populated if API-Football is enabled
                 away: []
             },
             teamNews: {
                 home: 'Data from Football-Data.org API', // Real data source
                 away: 'Data from Football-Data.org API'
             },
+            // Store fixture ID for API-Football lookups
+            fixtureId: null, // Will be set if we can map to API-Football fixture
             status: match.status,
             score: match.score,
             dataSource: homeStats && awayStats ? 'real' : 'partial', // Indicate data quality
@@ -873,6 +886,169 @@ function generateTeamPrediction(wins, draws, losses, goalsPerGame, concededPerGa
     }
 }
 
+/**
+ * Fetch injuries for a match using API-Football
+ */
+async function fetchMatchInjuries(fixtureId) {
+    if (!API_CONFIG.apiFootball.enabled || !API_CONFIG.apiFootball.apiKey || 
+        API_CONFIG.apiFootball.apiKey === 'YOUR_RAPIDAPI_KEY_HERE') {
+        return { home: [], away: [] };
+    }
+    
+    try {
+        const url = `${API_CONFIG.apiFootball.baseUrl}/injuries?fixture=${fixtureId}`;
+        const response = await fetch(url, { headers: API_CONFIG.apiFootball.headers });
+        
+        if (!response.ok) {
+            return { home: [], away: [] };
+        }
+        
+        const data = await response.json();
+        const injuries = data.response || [];
+        
+        const homeInjuries = [];
+        const awayInjuries = [];
+        
+        injuries.forEach(injury => {
+            const playerName = injury.player?.name || 'Unknown Player';
+            const injuryType = injury.player?.reason || 'Injury';
+            const injuryInfo = `${playerName} (${injuryType})`;
+            
+            if (injury.team?.id === data.response[0]?.team?.id) {
+                homeInjuries.push(injuryInfo);
+            } else {
+                awayInjuries.push(injuryInfo);
+            }
+        });
+        
+        return { home: homeInjuries, away: awayInjuries };
+    } catch (error) {
+        console.warn('Error fetching injuries:', error);
+        return { home: [], away: [] };
+    }
+}
+
+/**
+ * Fetch lineups for a match using API-Football
+ */
+async function fetchMatchLineups(fixtureId) {
+    if (!API_CONFIG.apiFootball.enabled || !API_CONFIG.apiFootball.apiKey || 
+        API_CONFIG.apiFootball.apiKey === 'YOUR_RAPIDAPI_KEY_HERE') {
+        return null;
+    }
+    
+    try {
+        const url = `${API_CONFIG.apiFootball.baseUrl}/fixtures/lineups?fixture=${fixtureId}`;
+        const response = await fetch(url, { headers: API_CONFIG.apiFootball.headers });
+        
+        if (!response.ok) {
+            return null;
+        }
+        
+        const data = await response.json();
+        return {
+            home: data.response?.[0] || null,
+            away: data.response?.[1] || null
+        };
+    } catch (error) {
+        console.warn('Error fetching lineups:', error);
+        return null;
+    }
+}
+
+/**
+ * Fetch team news using NewsAPI
+ */
+async function fetchTeamNewsFromAPI(teamName) {
+    if (!API_CONFIG.newsAPI.enabled || !API_CONFIG.newsAPI.apiKey || 
+        API_CONFIG.newsAPI.apiKey === 'YOUR_NEWSAPI_KEY_HERE') {
+        return null;
+    }
+    
+    try {
+        // Search for team news
+        const query = encodeURIComponent(`${teamName} football`);
+        const url = `${API_CONFIG.newsAPI.baseUrl}/everything?q=${query}&language=en&sortBy=publishedAt&pageSize=5&apiKey=${API_CONFIG.newsAPI.apiKey}`;
+        
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            return null;
+        }
+        
+        const data = await response.json();
+        const articles = data.articles || [];
+        
+        if (articles.length === 0) {
+            return null;
+        }
+        
+        // Return most recent relevant article
+        return {
+            title: articles[0].title,
+            description: articles[0].description,
+            url: articles[0].url,
+            publishedAt: articles[0].publishedAt,
+            source: articles[0].source?.name
+        };
+    } catch (error) {
+        console.warn('Error fetching team news:', error);
+        return null;
+    }
+}
+
+/**
+ * Fetch player statistics using API-Football
+ */
+async function fetchPlayerStats(teamId, season = 2024) {
+    if (!API_CONFIG.apiFootball.enabled || !API_CONFIG.apiFootball.apiKey || 
+        API_CONFIG.apiFootball.apiKey === 'YOUR_RAPIDAPI_KEY_HERE') {
+        return null;
+    }
+    
+    try {
+        const url = `${API_CONFIG.apiFootball.baseUrl}/players?team=${teamId}&season=${season}`;
+        const response = await fetch(url, { headers: API_CONFIG.apiFootball.headers });
+        
+        if (!response.ok) {
+            return null;
+        }
+        
+        const data = await response.json();
+        return data.response || [];
+    } catch (error) {
+        console.warn('Error fetching player stats:', error);
+        return null;
+    }
+}
+
+/**
+ * Enhanced fetch team news - tries NewsAPI first, falls back to generic
+ */
+async function fetchTeamNews(teamName) {
+    // Try NewsAPI first
+    const news = await fetchTeamNewsFromAPI(teamName);
+    
+    if (news) {
+        return {
+            injuries: [],
+            suspensions: [],
+            news: news.description || news.title,
+            source: news.source,
+            url: news.url,
+            dataSource: 'real'
+        };
+    }
+    
+    // Fallback
+    return {
+        injuries: [],
+        suspensions: [],
+        news: `Latest news for ${teamName} - Check official sources`,
+        dataSource: 'generic'
+    };
+}
+
 // Export functions
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
@@ -882,6 +1058,10 @@ if (typeof module !== 'undefined' && module.exports) {
         fetchTeamNews,
         fetchHeadToHead,
         fetchTeamAnalysis,
+        fetchMatchInjuries,
+        fetchMatchLineups,
+        fetchPlayerStats,
+        fetchTeamNewsFromAPI,
         API_CONFIG
     };
 }
