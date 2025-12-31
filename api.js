@@ -13,11 +13,11 @@ const API_CONFIG = {
     // Option 2: API-Football (via RapidAPI) - For injuries, lineups, player stats
     // Get free API key: https://rapidapi.com/api-sports/api/api-football
     apiFootball: {
-        enabled: false, // Set to true after getting API key
+        enabled: true, // ✅ Enabled with your API key
         baseUrl: 'https://api-football-v1.p.rapidapi.com/v3',
-        apiKey: 'YOUR_RAPIDAPI_KEY_HERE', // Get from RapidAPI dashboard
+        apiKey: '145e42c32emshc539086cad10ed1p18ddd0jsnd1adbff6ecd0', // Your RapidAPI key
         headers: {
-            'X-RapidAPI-Key': 'YOUR_RAPIDAPI_KEY_HERE',
+            'X-RapidAPI-Key': '145e42c32emshc539086cad10ed1p18ddd0jsnd1adbff6ecd0',
             'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
         }
     },
