@@ -1084,9 +1084,6 @@ async function fetchTeamNewsFromAPI(teamName) {
     }
     
     try {
-        let url;
-        let headers;
-        
         // Use Vercel proxy to avoid CORS
         const query = encodeURIComponent(`${teamName} football`);
         const url = `/api/news?q=${query}&limit=5`;
