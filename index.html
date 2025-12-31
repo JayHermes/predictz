@@ -14,6 +14,10 @@
         </header>
 
         <div class="controls">
+            <div class="search-container">
+                <input type="text" id="clubSearch" class="club-search" placeholder="Search for a club..." autocomplete="off">
+                <div id="suggestions" class="suggestions hidden"></div>
+            </div>
             <button id="fetchMatches" class="btn btn-primary">Fetch Today's Matches</button>
             <select id="leagueSelect" class="select">
                 <option value="all">All Leagues</option>
@@ -24,6 +28,8 @@
                 <option value="ligue-1">Ligue 1</option>
             </select>
         </div>
+        
+        <div id="errorMessage" class="error-message hidden"></div>
 
         <div id="loading" class="loading hidden">
             <div class="spinner"></div>
@@ -35,6 +41,7 @@
 
     <script src="api.js"></script>
     <script src="predictions.js"></script>
+    <script src="clubs.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

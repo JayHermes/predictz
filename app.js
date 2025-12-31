@@ -3,11 +3,13 @@
  */
 
 let currentMatches = [];
+let allClubs = [];
 
 // Initialize app
 document.addEventListener('DOMContentLoaded', () => {
     const fetchBtn = document.getElementById('fetchMatches');
     const leagueSelect = document.getElementById('leagueSelect');
+    const clubSearch = document.getElementById('clubSearch');
     
     fetchBtn.addEventListener('click', handleFetchMatches);
     leagueSelect.addEventListener('change', () => {
@@ -15,6 +17,9 @@ document.addEventListener('DOMContentLoaded', () => {
             filterMatches();
         }
     });
+    
+    // Setup club search autocomplete
+    setupClubSearch();
 });
 
 /**
@@ -40,10 +45,22 @@ async function handleFetchMatches() {
         }
     } catch (error) {
         console.error('Error fetching matches:', error);
+        const errorMessages = [
+            'Oops! The API is having a bad day! 😅 Try again in a bit!',
+            'Error! The football data got lost in translation! 🌍',
+            'Something went wrong! Did you check if the API is awake? 😴',
+            'Error loading matches! The server might be taking a coffee break! ☕',
+            'Oops! Something broke! But don\'t worry, it\'s not your fault! 🤷‍♂️',
+            'Error! The football gods are not responding! 🙏',
+            'Something went wrong! Maybe the API is playing hide and seek? 🎭'
+        ];
+        const errorMsg = errorMessages[Math.floor(Math.random() * errorMessages.length)];
+        
         container.innerHTML = `
             <div class="empty-state">
                 <h2>Error Loading Matches</h2>
-                <p>Please check your API configuration and try again.</p>
+                <p>${errorMsg}</p>
+                <p style="margin-top: 15px; font-size: 0.9em; opacity: 0.7;">Technical details: ${error.message || 'Unknown error'}</p>
             </div>
         `;
     } finally {
@@ -211,11 +228,158 @@ function getFormBadgeClass(percentage) {
  */
 function showEmptyState() {
     const container = document.getElementById('matchesContainer');
+    const messages = [
+        'No matches found! 🤷‍♂️ Maybe the teams are still warming up?',
+        'Nothing here! The pitch is empty... ⚽',
+        'No matches today! Time for a coffee break! ☕',
+        'Zilch! Nada! Nothing! The football gods are sleeping! 😴',
+        'No matches found! Did you check if it\'s a match day? 📅'
+    ];
+    const message = messages[Math.floor(Math.random() * messages.length)];
+    
     container.innerHTML = `
         <div class="empty-state">
             <h2>No Matches Found</h2>
-            <p>No matches available for the selected criteria.</p>
+            <p>${message}</p>
         </div>
     `;
+}
+
+/**
+ * Setup club search autocomplete
+ */
+function setupClubSearch() {
+    const clubSearch = document.getElementById('clubSearch');
+    const suggestions = document.getElementById('suggestions');
+    
+    clubSearch.addEventListener('input', (e) => {
+        const query = e.target.value.trim();
+        
+        if (query.length < 2) {
+            suggestions.classList.add('hidden');
+            hideError();
+            return;
+        }
+        
+        const matches = searchClubs(query);
+        
+        if (matches.length > 0) {
+            displaySuggestions(matches, query);
+            suggestions.classList.remove('hidden');
+            hideError();
+        } else {
+            // No matches found - show funny message
+            const similar = findSimilarClubs(query);
+            if (similar.length > 0) {
+                showClubError(query, similar);
+                displaySuggestions(similar, query);
+                suggestions.classList.remove('hidden');
+            } else {
+                showClubError(query, []);
+                suggestions.classList.add('hidden');
+            }
+        }
+    });
+    
+    // Hide suggestions when clicking outside
+    document.addEventListener('click', (e) => {
+        const searchContainer = document.querySelector('.search-container');
+        if (searchContainer && !searchContainer.contains(e.target)) {
+            suggestions.classList.add('hidden');
+        }
+    });
+    
+    // Handle suggestion selection
+    suggestions.addEventListener('click', (e) => {
+        if (e.target.classList.contains('suggestion-item')) {
+            clubSearch.value = e.target.textContent;
+            suggestions.classList.add('hidden');
+            hideError();
+            // Filter matches by selected club
+            filterByClub(e.target.textContent);
+        }
+    });
+}
+
+/**
+ * Display suggestions dropdown
+ */
+function displaySuggestions(matches, query) {
+    const suggestions = document.getElementById('suggestions');
+    suggestions.innerHTML = matches.map(club => 
+        `<div class="suggestion-item">${highlightMatch(club, query)}</div>`
+    ).join('');
+}
+
+/**
+ * Highlight matching text in suggestion
+ */
+function highlightMatch(club, query) {
+    const regex = new RegExp(`(${query})`, 'gi');
+    return club.replace(regex, '<strong>$1</strong>');
+}
+
+/**
+ * Show funny error message for misspelled club
+ */
+function showClubError(input, suggestions) {
+    const errorDiv = document.getElementById('errorMessage');
+    
+    if (suggestions.length > 0) {
+        const message = getFunnyClubMessage(input, suggestions);
+        errorDiv.innerHTML = `
+            <div style="margin-bottom: 10px;">${message}</div>
+            <div style="font-size: 0.9em; opacity: 0.8;">💡 Tip: Click on a suggestion to search for that club!</div>
+        `;
+    } else {
+        errorDiv.innerHTML = `
+            <div>"${input}"? That's definitely not a football club! 😂</div>
+            <div style="font-size: 0.9em; opacity: 0.8; margin-top: 10px;">Try searching for: Arsenal, Barcelona, Manchester United, etc.</div>
+        `;
+    }
+    
+    errorDiv.classList.remove('hidden');
+}
+
+/**
+ * Hide error message
+ */
+function hideError() {
+    const errorDiv = document.getElementById('errorMessage');
+    errorDiv.classList.add('hidden');
+}
+
+/**
+ * Filter matches by club name
+ */
+function filterByClub(clubName) {
+    if (!clubName) {
+        displayMatches(currentMatches);
+        return;
+    }
+    
+    const filtered = currentMatches.filter(match => 
+        match.homeTeam.toLowerCase().includes(clubName.toLowerCase()) ||
+        match.awayTeam.toLowerCase().includes(clubName.toLowerCase())
+    );
+    
+    if (filtered.length === 0) {
+        const messages = [
+            `No matches found for "${clubName}"! They must be on vacation! 🏖️`,
+            `"${clubName}" isn't playing today! Maybe check tomorrow? 📅`,
+            `No matches for "${clubName}"! Did they forget to show up? 😅`,
+            `"${clubName}"? Not in today's schedule! They're probably training! ⚽`
+        ];
+        const message = messages[Math.floor(Math.random() * messages.length)];
+        
+        document.getElementById('matchesContainer').innerHTML = `
+            <div class="empty-state">
+                <h2>No Matches Found</h2>
+                <p>${message}</p>
+            </div>
+        `;
+    } else {
+        displayMatches(filtered);
+    }
 }
 
