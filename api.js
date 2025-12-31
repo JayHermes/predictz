@@ -189,7 +189,10 @@ async function fetchMatches(league = 'all') {
         }
         
         console.log(`🌐 Fetching from: ${url}`);
-        const response = await fetch(url, { headers });
+        
+        // Use CORS proxy if configured
+        const fetchUrl = API_CONFIG.corsProxy ? `${API_CONFIG.corsProxy}${url}` : url;
+        const response = await fetch(fetchUrl, { headers });
         
         console.log(`📡 Response status: ${response.status} ${response.statusText}`);
         

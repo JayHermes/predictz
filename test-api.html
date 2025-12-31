@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test - Predictz</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .test-section {
+            background: white;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        button {
+            padding: 10px 20px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #45a049;
+        }
+        pre {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .warning { color: orange; }
+    </style>
+</head>
+<body>
+    <h1>🔧 API Test Page</h1>
+    <p>Use this page to test if your APIs are working correctly.</p>
+    
+    <div class="test-section">
+        <h2>1. Test Football-Data.org API</h2>
+        <button onclick="testFootballData()">Test API</button>
+        <div id="footballDataResult"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. Test API-Football (RapidAPI)</h2>
+        <button onclick="testApiFootball()">Test API</button>
+        <div id="apiFootballResult"></div>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. Test NewsAPI (RapidAPI)</h2>
+        <button onclick="testNewsAPI()">Test API</button>
+        <div id="newsAPIResult"></div>
+    </div>
+    
+    <script>
+        const API_CONFIG = {
+            footballData: {
+                baseUrl: 'https://api.football-data.org/v4',
+                apiKey: '7a37e1457f714a63b39d16c332a5eef6',
+                headers: {
+                    'X-Auth-Token': '7a37e1457f714a63b39d16c332a5eef6'
+                }
+            },
+            apiFootball: {
+                baseUrl: 'https://api-football-v1.p.rapidapi.com/v3',
+                apiKey: '145e42c32emshc539086cad10ed1p18ddd0jsnd1adbff6ecd0',
+                headers: {
+                    'X-RapidAPI-Key': '145e42c32emshc539086cad10ed1p18ddd0jsnd1adbff6ecd0',
+                    'X-RapidAPI-Host': 'api-football-v1.p.rapidapi.com'
+            },
+            newsAPI: {
+                baseUrl: 'https://news-api14.p.rapidapi.com',
+                apiKey: '145e42c32emshc539086cad10ed1p18ddd0jsnd1adbff6ecd0',
+                headers: {
+                    'X-RapidAPI-Key': '145e42c32emshc539086cad10ed1p18ddd0jsnd1adbff6ecd0',
+                    'X-RapidAPI-Host': 'news-api14.p.rapidapi.com'
+                }
+            }
+        };
+        
+        async function testFootballData() {
+            const resultDiv = document.getElementById('footballDataResult');
+            resultDiv.innerHTML = '<p>Testing...</p>';
+            
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                const url = `${API_CONFIG.footballData.baseUrl}/matches?dateFrom=${today}&dateTo=${today}`;
+                
+                resultDiv.innerHTML = `<p>Fetching: ${url}</p>`;
+                
+                const response = await fetch(url, { headers: API_CONFIG.footballData.headers });
+                
+                resultDiv.innerHTML += `<p class="${response.ok ? 'success' : 'error'}">Status: ${response.status} ${response.statusText}</p>`;
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    resultDiv.innerHTML += `<pre class="error">Error: ${errorText}</pre>`;
+                    return;
+                }
+                
+                const data = await response.json();
+                resultDiv.innerHTML += `<p class="success">✅ Success! Found ${data.matches?.length || 0} matches</p>`;
+                resultDiv.innerHTML += `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            } catch (error) {
+                resultDiv.innerHTML += `<p class="error">❌ Error: ${error.message}</p>`;
+                if (error.message.includes('CORS')) {
+                    resultDiv.innerHTML += `<p class="warning">⚠️ CORS Error: The API is blocking browser requests. You may need to deploy to a server or use a CORS proxy.</p>`;
+                }
+            }
+        }
+        
+        async function testApiFootball() {
+            const resultDiv = document.getElementById('apiFootballResult');
+            resultDiv.innerHTML = '<p>Testing...</p>';
+            
+            try {
+                const today = new Date().toISOString().split('T')[0];
+                const url = `${API_CONFIG.apiFootball.baseUrl}/fixtures?date=${today}`;
+                
+                resultDiv.innerHTML = `<p>Fetching: ${url}</p>`;
+                
+                const response = await fetch(url, { headers: API_CONFIG.apiFootball.headers });
+                
+                resultDiv.innerHTML += `<p class="${response.ok ? 'success' : 'error'}">Status: ${response.status} ${response.statusText}</p>`;
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    resultDiv.innerHTML += `<pre class="error">Error: ${errorText}</pre>`;
+                    return;
+                }
+                
+                const data = await response.json();
+                resultDiv.innerHTML += `<p class="success">✅ Success! Found ${data.response?.length || 0} fixtures</p>`;
+                resultDiv.innerHTML += `<pre>${JSON.stringify(data, null, 2).substring(0, 1000)}...</pre>`;
+            } catch (error) {
+                resultDiv.innerHTML += `<p class="error">❌ Error: ${error.message}</p>`;
+            }
+        }
+        
+        async function testNewsAPI() {
+            const resultDiv = document.getElementById('newsAPIResult');
+            resultDiv.innerHTML = '<p>Testing...</p>';
+            
+            try {
+                const query = encodeURIComponent('Arsenal football');
+                const url = `${API_CONFIG.newsAPI.baseUrl}/search?q=${query}&limit=3`;
+                
+                resultDiv.innerHTML = `<p>Fetching: ${url}</p>`;
+                
+                const response = await fetch(url, { headers: API_CONFIG.newsAPI.headers });
+                
+                resultDiv.innerHTML += `<p class="${response.ok ? 'success' : 'error'}">Status: ${response.status} ${response.statusText}</p>`;
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    resultDiv.innerHTML += `<pre class="error">Error: ${errorText}</pre>`;
+                    return;
+                }
+                
+                const data = await response.json();
+                resultDiv.innerHTML += `<p class="success">✅ Success! Found news articles</p>`;
+                resultDiv.innerHTML += `<pre>${JSON.stringify(data, null, 2).substring(0, 1000)}...</pre>`;
+            } catch (error) {
+                resultDiv.innerHTML += `<p class="error">❌ Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>
+
